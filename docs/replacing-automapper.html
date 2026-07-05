@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Replacing AutoMapper with Mapwright — a production case study</title>
+<style>
+  :root {
+    --ink: #1a2332; --muted: #5a6a7e; --accent: #0f4c81; --accent-soft: #e8f0f8;
+    --good: #1a7f4e; --bad: #b3382c; --warn: #9a6700;
+    --code-bg: #f6f8fa; --border: #d7dee8; --card: #ffffff; --page: #f2f5f9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--page); line-height: 1.6; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
+  header.hero { background: linear-gradient(135deg, #0f4c81 0%, #1a2332 100%); color: #fff; padding: 56px 24px 48px; }
+  .hero-inner { max-width: 960px; margin: 0 auto; }
+  .hero h1 { font-size: 2.1rem; font-weight: 700; letter-spacing: -.5px; }
+  .hero .sub { margin-top: 10px; font-size: 1.15rem; color: #c8d8ea; max-width: 46em; }
+  .hero .tag { display: inline-block; margin-bottom: 18px; padding: 4px 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: #cfe0f0; }
+  h2 { font-size: 1.45rem; color: var(--accent); margin: 48px 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--border); letter-spacing: -.3px; }
+  h3 { font-size: 1.08rem; margin: 28px 0 8px; color: var(--ink); }
+  p { margin: 10px 0; }
+  p.lead { font-size: 1.08rem; color: var(--muted); }
+  a { color: var(--accent); }
+  code { font-family: 'Cascadia Code', Consolas, monospace; font-size: .88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: #10161f; color: #d5dde8; border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin: 14px 0; font-size: .84rem; line-height: 1.55; }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .cm { color: #7a8a9d; } pre .kw { color: #7cb8ff; } pre .ty { color: #6fd3a8; } pre .st { color: #e8b878; } pre .at { color: #d0a8ff; } pre .dg { color: #ff9d9d; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; margin: 16px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel-title { font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
+  .panel-title.before { color: var(--bad); } .panel-title.after { color: var(--good); }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; background: var(--card); border-radius: 8px; overflow: hidden; font-size: .92rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--accent-soft); color: var(--accent); font-size: .82rem; letter-spacing: .05em; text-transform: uppercase; }
+  tr:last-child td { border-bottom: none; }
+  .sev { font-weight: 700; font-size: .82rem; }
+  .sev.err { color: var(--bad); } .sev.warn { color: var(--warn); } .sev.info { color: var(--accent); }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 12px 18px; margin: 16px 0; }
+  .callout.win { border-color: var(--good); background: #e9f6ef; }
+  ol.steps { counter-reset: step; list-style: none; margin: 14px 0; }
+  ol.steps li { counter-increment: step; position: relative; padding: 0 0 18px 52px; }
+  ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .foot { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: .88rem; }
+  .overflow { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="tag">Mapwright · Case study</span>
+    <h1>Replacing AutoMapper, at compile time</h1>
+    <p class="sub">How a production catalog API deleted its AutoMapper configuration — profiles, ignore
+    lists, the <code style="background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:#e8eff7">AssertConfigurationIsValid()</code> test, all of it — and got the same mappings back as
+    generated, readable, compiler-verified C#.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<h2>The starting point</h2>
+<p class="lead">The subject of this case study is a production REST API that manages a scientific
+reference-code catalog: code tables, code types, cross-table relations, synonyms. Names below are
+neutralized, but the shapes, the AutoMapper usage, and every migration decision are real.</p>
+
+<p>The API kept two parallel models, as most layered .NET systems do:</p>
+<ul style="margin:8px 0 8px 24px">
+  <li>an <strong>immutable domain record</strong> — IDs suffixed <code>ID</code>, non-nullable booleans, audit
+      timestamps inherited from a base record;</li>
+  <li>a <strong>mutable EF Core entity</strong> — IDs suffixed <code>Id</code>, nullable database columns
+      (<code>bool?</code>, <code>DateTime?</code>), an audit <code>User</code> column, navigation collections,
+      and a few <code>[NotMapped]</code> relationship helpers.</li>
+</ul>
+
+<p>One static <code>MapperFactory</code> owned every <code>CreateMap</code>. Three maps per entity, eight
+entities — and the two failure modes every AutoMapper codebase knows:</p>
+
+<pre><code><span class="cm">// The old world: runtime configuration, checked (maybe) by a test.</span>
+<span class="kw">var</span> config = <span class="kw">new</span> <span class="ty">MapperConfiguration</span>(cfg =&gt;
+{
+    cfg.CreateMap&lt;<span class="ty">Domain.Code</span>, <span class="ty">Entities.CodeEntity</span>&gt;()
+       .ForMember(d =&gt; d.User,        o =&gt; o.Ignore())
+       .ForMember(d =&gt; d.Created,     o =&gt; o.Ignore())
+       .ForMember(d =&gt; d.Modified,    o =&gt; o.Ignore())
+       .ForMember(d =&gt; d.ParentCodes, o =&gt; o.Ignore());
+
+    cfg.CreateMap&lt;<span class="ty">Entities.CodeEntity</span>, <span class="ty">Domain.Code</span>&gt;();
+
+    <span class="cm">// Self-map: scalar copy onto the EF-tracked instance during updates.</span>
+    cfg.CreateMap&lt;<span class="ty">Entities.CodeEntity</span>, <span class="ty">Entities.CodeEntity</span>&gt;()
+       .ForMember(d =&gt; d.User,    o =&gt; o.Ignore())
+       .ForMember(d =&gt; d.Created, o =&gt; o.Ignore());
+    <span class="cm">// ... five more entities of the same ...</span>
+});</code></pre>
+
+<div class="card">
+  <strong>Failure mode #1 — silent drift.</strong> Rename a domain property and the convention match
+  quietly disappears: the entity column ships as <code>null</code>. Nothing fails until data is wrong.<br><br>
+  <strong>Failure mode #2 — deferred verification.</strong> <code>AssertConfigurationIsValid()</code> catches
+  unmapped members — at <em>runtime</em>, in a test somebody must remember to keep honest, with ignore
+  lists that rot invisibly as models evolve.
+</div>
+
+<h2>The Mapwright shape</h2>
+<p>Mapwright replaces the configuration object with <strong>declarations</strong>. Each mapping is a
+<code>static partial</code> method on a <code>[Mapper]</code> class; a Roslyn incremental source generator
+writes the body while the compiler runs:</p>
+
+<pre><code><span class="at">[Mapper]</span>
+<span class="kw">public static partial class</span> <span class="ty">CatalogMapper</span>
+{
+    <span class="cm">// Domain -&gt; entity. The same four ignores the old profile declared —</span>
+    <span class="cm">// now verified against the entity type on every build.</span>
+    <span class="at">[MapIgnore(</span><span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.User), <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.Created),
+               <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.Modified), <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.ParentCodes)<span class="at">)]</span>
+    <span class="kw">public static partial</span> <span class="ty">CodeEntity</span> ToEntity(<span class="ty">Code</span> source);
+
+    <span class="cm">// Entity -&gt; domain. bool? columns collapse to the domain's non-nullable bools.</span>
+    <span class="at">[MapIgnoreSource(</span><span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.User), <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.ParentCodes)<span class="at">)]</span>
+    <span class="kw">public static partial</span> <span class="ty">Code</span> ToDomain(<span class="ty">CodeEntity</span> source);
+
+    <span class="cm">// The self-map, as an in-place copy for the Repository.Update pattern.</span>
+    <span class="at">[MapIgnore(</span><span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.User), <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.Created), <span class="kw">nameof</span>(<span class="ty">CodeEntity</span>.Modified)<span class="at">)]</span>
+    <span class="kw">public static partial void</span> CopyScalars(<span class="ty">CodeEntity</span> source, <span class="ty">CodeEntity</span> target);
+
+    <span class="cm">// The ProjectTo replacement — EF Core translates this to SQL.</span>
+    <span class="kw">public static partial</span> <span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">CodeEntity</span>, <span class="ty">CodeSummary</span>&gt;&gt; SummaryProjection();
+
+    <span class="kw">public static partial</span> <span class="ty">List</span>&lt;<span class="ty">CodeEntity</span>&gt; ToEntities(<span class="ty">IEnumerable</span>&lt;<span class="ty">Code</span>&gt; source);
+}</code></pre>
+
+<p>And this is what the generator emits — not IL, not a runtime plan, but a <code>.g.cs</code> file that
+reads exactly like the code a careful engineer writes by hand (because that is the standard it was
+built against):</p>
+
+<pre><code><span class="cm">// &lt;auto-generated by Mapwright — the mapping code below is yours to read, debug, and step through /&gt;</span>
+<span class="kw">public static partial</span> <span class="ty">Code</span> ToDomain(<span class="ty">CodeEntity</span> source)
+{
+    <span class="ty">ArgumentNullException</span>.ThrowIfNull(source);
+    <span class="kw">var</span> result = <span class="kw">new</span> <span class="ty">Code</span>
+    {
+        CodeID      = source.CodeId,              <span class="cm">// ID ↔ Id casing: matched automatically</span>
+        CodeTypeID  = source.CodeTypeId,
+        Value       = source.Value,
+        Description = source.Description,
+        Visibility  = source.Visibility.GetValueOrDefault(),  <span class="cm">// bool? → bool, visibly</span>
+        Deprecated  = source.Deprecated.GetValueOrDefault(),
+        LongDescription = source.LongDescription,
+        Created     = source.Created,             <span class="cm">// inherited record members included</span>
+        Modified    = source.Modified,
+    };
+    <span class="kw">return</span> result;
+}</code></pre>
+
+<div class="callout win">
+  <strong>The core trade.</strong> AutoMapper hides this code inside a runtime engine; the migration's
+  hand-written phase proved the team wanted to <em>see</em> it. Mapwright generates precisely that
+  hand-written shape — with none of the hand-maintenance: eight entities × three maps regenerate
+  on every build, and drift is a diagnostic, not an incident.
+</div>
+
+<h2>Feature-by-feature: where each AutoMapper behavior went</h2>
+<div class="overflow">
+<table>
+  <tr><th>AutoMapper</th><th>Mapwright</th><th>What changed</th></tr>
+  <tr>
+    <td><code>CreateMap&lt;S, D&gt;()</code></td>
+    <td><code>static partial D Map(S source);</code></td>
+    <td>Configuration became a declaration; the map is a plain method call — no <code>IMapper</code> to inject, nothing in DI.</td>
+  </tr>
+  <tr>
+    <td>Convention matching</td>
+    <td>Case-insensitive name match, inherited members included</td>
+    <td><code>CodeID → CodeId</code> still needs zero config; a match that stops matching becomes <span class="sev warn">MW0001</span> instead of a silent null.</td>
+  </tr>
+  <tr>
+    <td><code>ForMember(d =&gt; d.P, o =&gt; o.Ignore())</code></td>
+    <td><code>[MapIgnore(nameof(D.P))]</code></td>
+    <td>Same intent, but a stale entry is a build <span class="sev err">error (MW0003)</span> — ignore lists cannot rot.</td>
+  </tr>
+  <tr>
+    <td><code>ForMember(d =&gt; d.P, o =&gt; o.MapFrom(s =&gt; s.Q))</code></td>
+    <td><code>[MapProperty("Q", "P")]</code>, or <code>[AfterMap]</code> for computed values</td>
+    <td>Renames stay declarative; logic moves into a named, debuggable method in your own class.</td>
+  </tr>
+  <tr>
+    <td>Self-map + <code>Map(src, dest)</code></td>
+    <td><code>static partial void Copy(S source, D target);</code></td>
+    <td>In-place update of the EF-tracked instance, with init-only members flagged (<span class="sev warn">MW0006</span>) rather than half-copied.</td>
+  </tr>
+  <tr>
+    <td>Null substitution (<code>bool?</code> column → <code>bool</code>)</td>
+    <td>Generated <code>GetValueOrDefault()</code></td>
+    <td>The null-collapsing behavior is visible in the generated file instead of buried in engine semantics.</td>
+  </tr>
+  <tr>
+    <td><code>ProjectTo&lt;D&gt;(queryable)</code></td>
+    <td><code>static partial Expression&lt;Func&lt;S, D&gt;&gt; Projection();</code></td>
+    <td><code>q.Select(M.Projection())</code> — the SQL-shaping expression is inspectable, nested maps inlined, cycles rejected at build time (<span class="sev err">MW0007</span>).</td>
+  </tr>
+  <tr>
+    <td><code>AssertConfigurationIsValid()</code></td>
+    <td>The compiler</td>
+    <td>The verification test was deleted. <span class="sev warn">MW0001</span> fires in the IDE on every keystroke; <code>.editorconfig</code> can promote it to an error.</td>
+  </tr>
+</table>
+</div>
+
+<h2>The verification story, before and after</h2>
+<div class="grid2">
+  <div class="card">
+    <div class="panel-title before">Before — runtime, opt-in</div>
+    <p style="font-size:.93rem">A <code>MappingCoverageTests</code> fixture called the verifier and maintained
+    string lists of "unmapped by design" properties per map. It ran when CI ran, verified what the lists
+    said, and the lists themselves were unverifiable — a removed property lingered in the ignore list
+    forever, and a new property was caught only after a full test cycle.</p>
+  </div>
+  <div class="card">
+    <div class="panel-title after">After — compile time, always on</div>
+    <p style="font-size:.93rem">Add a property to <code>CodeEntity</code> and the IDE underlines
+    <code>ToEntity</code> within seconds: <em>MW0001: Destination property 'Sponsor' is not mapped</em>.
+    Remove a property that an ignore list still names, and the build fails with MW0003. The
+    coverage test fixture is gone; there is nothing left for it to check.</p>
+  </div>
+</div>
+
+<h2>What the numbers looked like</h2>
+<div class="overflow">
+<table>
+  <tr><th></th><th>AutoMapper</th><th>Hand-written (interim)</th><th>Mapwright</th></tr>
+  <tr><td>Mapping configuration/code to maintain</td><td>~190-line MapperFactory</td><td>~45 lines × 8 entity files</td><td><strong>3–5 declaration lines per entity</strong></td></tr>
+  <tr><td>Unmapped property discovered</td><td>Runtime test (if written)</td><td>Runtime verifier test</td><td><strong>IDE squiggle, build warning/error</strong></td></tr>
+  <tr><td>Stale ignore entry discovered</td><td>Never</td><td>Never</td><td><strong>Build error</strong></td></tr>
+  <tr><td>Runtime machinery</td><td>Reflection engine + config cache</td><td>None</td><td><strong>None (attributes only; AOT/trim safe)</strong></td></tr>
+  <tr><td>Can you step through a mapping?</td><td>No</td><td>Yes</td><td><strong>Yes — it's a .g.cs file</strong></td></tr>
+</table>
+</div>
+
+<h2>The migration, step by step</h2>
+<ol class="steps">
+  <li><strong>Install.</strong> Add the <code>Mapwright</code> attributes package and the
+      <code>Mapwright.Generator</code> analyzer package to the project that owns the mappings.</li>
+  <li><strong>Inventory the profiles.</strong> Each <code>CreateMap&lt;S,D&gt;</code> becomes one
+      <code>static partial</code> declaration; each <code>ForMember(...Ignore())</code> list becomes a
+      <code>[MapIgnore(...)]</code> with <code>nameof</code>. Direction matters: the case study's
+      domain→entity and entity→domain maps carried different ignore lists, and kept them.</li>
+  <li><strong>Let MW0001 drive.</strong> Build. Every warning is a decision the old profile made
+      implicitly — map it, ignore it, or hand it to an <code>[AfterMap]</code>. When the build is clean,
+      the mapping layer is provably total.</li>
+  <li><strong>Rewrite call sites mechanically.</strong> <code>_mapper.Map&lt;CodeEntity&gt;(code)</code> →
+      <code>CatalogMapper.ToEntity(code)</code>; <code>_mapper.Map(incoming, tracked)</code> →
+      <code>CatalogMapper.CopyScalars(incoming, tracked)</code>; <code>ProjectTo&lt;CodeSummary&gt;()</code> →
+      <code>.Select(CatalogMapper.SummaryProjection())</code>. Then delete the <code>IMapper</code>
+      constructor parameters and DI registrations.</li>
+  <li><strong>Delete.</strong> The MapperFactory, the AutoMapper package references, and the
+      configuration-validity test. The compiler owns that job now.</li>
+  <li><strong>Tighten.</strong> <code>dotnet_diagnostic.MW0001.severity = error</code> in
+      <code>.editorconfig</code> once the team trusts the workflow — full AutoMapper-strictness with
+      zero runtime cost.</li>
+</ol>
+
+<h2>Honest limitations</h2>
+<p>Mapwright v0.1 is deliberately smaller than AutoMapper's full surface. Destinations need a
+parameterless constructor (records with <code>init</code> properties fit naturally; constructor mapping
+is roadmap). Mapping methods are static, on non-generic top-level classes. There are no DI-resolved
+value resolvers inside maps — computed and service-dependent values belong in <code>[AfterMap]</code>
+methods or ordinary code around the map, where they are testable without a mapping engine in the loop.
+If your codebase leans hard on open generics or runtime-configured type converters, migrate those maps
+last, by hand, behind the same partial-method façade.</p>
+
+<h2>Getting started</h2>
+<pre><code>git clone https://github.com/KadjiProjects/Mapwright.git
+cd Mapwright
+dotnet test          <span class="cm"># 17/17 — behavior over real generated mappers + diagnostics</span></code></pre>
+<p>Then read the generated mappers for the case-study shapes under
+<code>tests/Mapwright.Tests/obj/generated/</code> after a build — the fastest way to convince yourself
+there is no magic left.</p>
+
+<div class="foot">
+  Mapwright · MIT licensed · <a href="https://github.com/KadjiProjects/Mapwright">github.com/KadjiProjects/Mapwright</a><br>
+  Case-study shapes are anonymized from a production system; the patterns, decisions, and diagnostics are real.
+</div>
+
+</div>
+</body>
+</html>

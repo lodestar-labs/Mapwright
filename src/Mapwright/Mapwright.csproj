@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Attributes for the Mapwright compile-time object mapper. This package contains no runtime machinery at all — every mapping is generated as plain C# by Mapwright.Generator, so there is nothing to reflect over, nothing to configure, and nothing that can fail at runtime.</Description>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+</Project>

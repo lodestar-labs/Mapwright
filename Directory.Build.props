@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Authors>KadjiProjects</Authors>
+    <Product>Mapwright</Product>
+    <Version>0.1.0</Version>
+    <RepositoryUrl>https://github.com/KadjiProjects/Mapwright</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
