@@ -8,7 +8,7 @@ internal static class Descriptors
 {
     private const string Category = "Mapwright";
 
-    private const string HelpBase = "https://github.com/KadjiProjects/Mapwright#";
+    private const string HelpBase = "https://github.com/lodestar-labs/Mapwright#";
 
     public static readonly DiagnosticDescriptor UnmappedTargetProperty = new(
         "MW0001",

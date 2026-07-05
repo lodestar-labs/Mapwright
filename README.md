@@ -2,7 +2,7 @@
 
 **The compile-time object mapper. Declare the mapping; the compiler writes it, checks it, and shows you the code.**
 
-[![CI](https://github.com/KadjiProjects/Mapwright/actions/workflows/ci.yml/badge.svg)](https://github.com/KadjiProjects/Mapwright/actions/workflows/ci.yml)
+[![CI](https://github.com/lodestar-labs/Mapwright/actions/workflows/ci.yml/badge.svg)](https://github.com/lodestar-labs/Mapwright/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
