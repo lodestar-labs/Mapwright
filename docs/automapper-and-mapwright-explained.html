@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoMapper &amp; Mapwright — a beginner's guide</title>
+<style>
+  :root {
+    --ink: #1a2332; --muted: #5a6a7e; --accent: #0f4c81; --accent-soft: #e8f0f8;
+    --good: #1a7f4e; --bad: #b3382c; --warn: #9a6700;
+    --code-bg: #f6f8fa; --border: #d7dee8; --card: #ffffff; --page: #f2f5f9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--ink); background: var(--page); line-height: 1.65; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
+  header.hero { background: linear-gradient(135deg, #0f4c81 0%, #1a2332 100%); color: #fff; padding: 56px 24px 48px; }
+  .hero-inner { max-width: 960px; margin: 0 auto; }
+  .hero h1 { font-size: 2.1rem; font-weight: 700; letter-spacing: -.5px; }
+  .hero .sub { margin-top: 10px; font-size: 1.15rem; color: #c8d8ea; max-width: 50em; }
+  .hero .tag { display: inline-block; margin-bottom: 18px; padding: 4px 12px; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; color: #cfe0f0; }
+  h2 { font-size: 1.5rem; color: var(--accent); margin: 52px 0 14px; padding-bottom: 6px; border-bottom: 2px solid var(--border); letter-spacing: -.3px; }
+  h3 { font-size: 1.1rem; margin: 26px 0 8px; color: var(--ink); }
+  p { margin: 10px 0; }
+  p.lead { font-size: 1.08rem; color: var(--muted); }
+  a { color: var(--accent); }
+  ul, ol { margin: 10px 0 10px 26px; }
+  li { margin: 4px 0; }
+  code { font-family: 'Cascadia Code', Consolas, monospace; font-size: .88em; background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  pre { background: #10161f; color: #d5dde8; border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin: 14px 0; font-size: .84rem; line-height: 1.55; }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .cm { color: #7a8a9d; } pre .kw { color: #7cb8ff; } pre .ty { color: #6fd3a8; } pre .st { color: #e8b878; } pre .at { color: #d0a8ff; } pre .dg { color: #ff9d9d; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; margin: 16px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .panel-title { font-size: .78rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 6px; }
+  .panel-title.before { color: var(--bad); } .panel-title.after { color: var(--good); }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0; background: var(--card); border-radius: 8px; overflow: hidden; font-size: .92rem; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--accent-soft); color: var(--accent); font-size: .82rem; letter-spacing: .05em; text-transform: uppercase; }
+  tr:last-child td { border-bottom: none; }
+  .sev { font-weight: 700; font-size: .82rem; }
+  .sev.err { color: var(--bad); } .sev.warn { color: var(--warn); } .sev.info { color: var(--accent); }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 12px 18px; margin: 16px 0; }
+  .callout.win { border-color: var(--good); background: #e9f6ef; }
+  .callout.warn { border-color: var(--warn); background: #fbf3e0; }
+  ol.steps { counter-reset: step; list-style: none; margin: 14px 0; }
+  ol.steps li { counter-increment: step; position: relative; padding: 0 0 18px 52px; margin: 0; }
+  ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .term { font-weight: 700; color: var(--accent); }
+  nav.toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; margin: 28px 0; }
+  nav.toc .panel-title { color: var(--accent); margin-bottom: 10px; }
+  nav.toc ol { counter-reset: toc; list-style: none; margin: 0; }
+  nav.toc li { counter-increment: toc; margin: 6px 0; }
+  nav.toc li::before { content: counter(toc) ". "; color: var(--accent); font-weight: 700; }
+  .foot { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: .88rem; }
+  .overflow { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="tag">Mapwright · Beginner's guide</span>
+    <h1>AutoMapper &amp; Mapwright, explained from zero</h1>
+    <p class="sub">What AutoMapper is and why teams use it, then how Mapwright does the same job at
+    compile time instead of at runtime — with a full worked example. Written for a developer who has
+    never used either.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <div class="panel-title">On this page</div>
+  <ol>
+    <li>What problem are we even solving?</li>
+    <li>What is AutoMapper?</li>
+    <li>Why teams move away from AutoMapper</li>
+    <li>What is Mapwright?</li>
+    <li>Mapwright's architecture — how it actually works</li>
+    <li>The four things you can declare</li>
+    <li>How to use Mapwright — a full walkthrough</li>
+    <li>Reading the diagnostics</li>
+    <li>AutoMapper → Mapwright cheat sheet</li>
+  </ol>
+</nav>
+
+<h2>1. What problem are we even solving?</h2>
+<p class="lead">Almost every real application has more than one shape for the "same" piece of data.</p>
+<p>A typical .NET web API has, at minimum:</p>
+<ul>
+  <li>an <span class="term">entity</span> — the class Entity Framework Core maps onto a database table
+      (nullable columns, navigation properties, audit fields like <code>CreatedBy</code>);</li>
+  <li>a <span class="term">DTO</span> ("Data Transfer Object") — the class that actually goes out over
+      the API as JSON (no navigation properties, no database-only fields, maybe renamed properties).</li>
+</ul>
+<p>Converting between them — <span class="term">"mapping"</span> — is simple in principle:</p>
+<pre><code><span class="kw">var</span> dto = <span class="kw">new</span> <span class="ty">EmployeeDto</span>
+{
+    Id = employee.Id,
+    FullName = employee.FirstName + <span class="st">" "</span> + employee.LastName,
+    Department = employee.Department.Name,
+};</code></pre>
+<p>It's simple <em>once</em>. The problem is that a real application has this same shape of code for
+dozens of entities, written by different people, on different days — and every one of those blocks
+rots the same way: someone adds a property to the entity and forgets to add it to the mapping code, or
+renames a property and the compiler doesn't warn about the assignment that now silently does nothing.</p>
+<p>Both AutoMapper and Mapwright exist to solve exactly this: stop writing (and maintaining) that
+assignment code by hand, and get some kind of safety net for when the two shapes drift apart. They just
+solve it in opposite ways — one at runtime, one at compile time — and that difference is the whole
+story of this document.</p>
+
+<h2>2. What is AutoMapper?</h2>
+<p><a href="https://automapper.org/">AutoMapper</a> is a long-standing, extremely popular .NET library
+that maps objects for you. Instead of writing the assignment block above, you <em>configure</em> the
+mapping once and then call a generic <code>Map</code> method everywhere you need it.</p>
+
+<h3>2.1 The building blocks</h3>
+<table>
+  <tr><th>Concept</th><th>What it is</th></tr>
+  <tr><td><code>Profile</code></td><td>A class where you declare all the mappings for one area of the
+      app. You inherit <code>AutoMapper.Profile</code> and call <code>CreateMap</code> in its
+      constructor.</td></tr>
+  <tr><td><code>CreateMap&lt;TSource, TDestination&gt;()</code></td><td>"Employee objects can become
+      EmployeeDto objects." By default, AutoMapper matches properties with the same name automatically
+      (this is called <span class="term">convention-based mapping</span>).</td></tr>
+  <tr><td><code>ForMember(...)</code></td><td>Overrides the convention for one property: rename it,
+      compute it from something else, or ignore it entirely.</td></tr>
+  <tr><td><code>IMapper</code></td><td>The interface you inject via dependency injection into your
+      controllers/services once AutoMapper is registered. Calling <code>_mapper.Map&lt;EmployeeDto&gt;(employee)</code>
+      performs the actual conversion, using reflection, at runtime.</td></tr>
+  <tr><td><code>ProjectTo&lt;T&gt;()</code></td><td>An Entity-Framework-aware variant that turns the
+      mapping into part of the SQL query itself, instead of loading full entities and mapping them in
+      memory afterwards.</td></tr>
+  <tr><td><code>AssertConfigurationIsValid()</code></td><td>A method you call — usually from a unit
+      test — that checks every <code>CreateMap</code> actually has somewhere for every destination
+      property to come from.</td></tr>
+</table>
+
+<h3>2.2 A minimal example</h3>
+<pre><code><span class="cm">// The two shapes</span>
+<span class="kw">public class</span> <span class="ty">Employee</span>            <span class="cm">// EF entity</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> FirstName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> LastName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public bool</span>? IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }   <span class="cm">// nullable database column</span>
+}
+
+<span class="kw">public class</span> <span class="ty">EmployeeDto</span>         <span class="cm">// what the API returns</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> FirstName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> LastName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public bool</span> IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }    <span class="cm">// DTOs don't do null bools</span>
+}
+
+<span class="cm">// The configuration — usually one file per area of the app</span>
+<span class="kw">public class</span> <span class="ty">EmployeeProfile</span> : <span class="ty">Profile</span>
+{
+    <span class="kw">public</span> EmployeeProfile()
+    {
+        CreateMap&lt;<span class="ty">Employee</span>, <span class="ty">EmployeeDto</span>&gt;()
+            .ForMember(d =&gt; d.IsActive, o =&gt; o.MapFrom(s =&gt; s.IsActive ?? <span class="kw">false</span>));
+    }
+}
+
+<span class="cm">// Program.cs — register it once</span>
+builder.Services.AddAutoMapper(<span class="kw">typeof</span>(EmployeeProfile));
+
+<span class="cm">// Anywhere with IMapper injected</span>
+<span class="kw">public class</span> <span class="ty">EmployeeService</span>
+{
+    <span class="kw">private readonly</span> <span class="ty">IMapper</span> _mapper;
+    <span class="kw">public</span> EmployeeService(<span class="ty">IMapper</span> mapper) =&gt; _mapper = mapper;
+
+    <span class="kw">public</span> <span class="ty">EmployeeDto</span> GetDto(<span class="ty">Employee</span> employee)
+        =&gt; _mapper.Map&lt;<span class="ty">EmployeeDto</span>&gt;(employee);
+}</code></pre>
+<p>That's the whole appeal: write the <code>CreateMap</code> once, and every <code>Id</code>/<code>FirstName</code>/<code>LastName</code>
+property is copied over automatically by name — no hand-written assignment block, ever, for the boring
+90% of properties that just match.</p>
+
+<h3>2.3 How it actually works under the hood</h3>
+<p>This part matters for understanding <em>why</em> Mapwright exists. When your app starts, AutoMapper
+builds a <code>MapperConfiguration</code> by inspecting your <code>Profile</code> classes with
+<span class="term">reflection</span> (code that examines types and their properties while the program
+is running, rather than at compile time). It compiles an internal execution plan for each
+<code>CreateMap</code>, caches it, and every later <code>Map()</code> call runs that cached plan. None
+of this happens at compile time — the C# compiler has no idea what <code>CreateMap&lt;Employee, EmployeeDto&gt;()</code>
+is going to do; it only finds out when the application actually runs.</p>
+
+<h2>3. Why teams move away from AutoMapper</h2>
+<p>AutoMapper is not "bad" — it has mapped a huge amount of production .NET code successfully for over
+a decade. The reasons teams replace it are specific and worth naming honestly, because they are exactly
+what Mapwright's design responds to:</p>
+<div class="grid2">
+  <div class="card">
+    <div class="panel-title before">Silent drift</div>
+    <p style="font-size:.93rem">Rename a property on either side, and the convention match just stops
+    — quietly. The destination property ships as <code>null</code>/<code>default</code>. Nothing turns
+    red. Nobody finds out until a bug report.</p>
+  </div>
+  <div class="card">
+    <div class="panel-title before">Deferred verification</div>
+    <p style="font-size:.93rem"><code>AssertConfigurationIsValid()</code> only catches problems if a
+    test calls it, and that test only runs when CI runs. It is opt-in safety, not built-in safety.</p>
+  </div>
+  <div class="card">
+    <div class="panel-title before">Runtime cost</div>
+    <p style="font-size:.93rem">Reflection and cached execution plans are fast, but not free — and they
+    are fundamentally incompatible with <span class="term">Native AOT</span>/trimming (compiling .NET
+    apps ahead-of-time into a single native binary), which more teams need for containers and cold-start
+    latency.</p>
+  </div>
+  <div class="card">
+    <div class="panel-title before">Nothing to step through</div>
+    <p style="font-size:.93rem">When a mapping misbehaves, there is no method body to put a breakpoint
+    in — the actual copying logic lives inside AutoMapper's engine, not in your codebase.</p>
+  </div>
+</div>
+<p>All four of these are <em>runtime</em> problems. The fix, conceptually, is to do the same
+configuration-driven mapping — but resolve it entirely while the code is compiling, so a bad mapping
+is a build error instead of a production incident. That's what a
+<span class="term">source generator</span> gives you, and it's what Mapwright is built on.</p>
+
+<h2>4. What is Mapwright?</h2>
+<p>Mapwright is a compile-time replacement for AutoMapper. You still <em>declare</em> what should be
+mapped to what — you don't hand-write the property assignments — but instead of a runtime engine
+reading that declaration and mapping objects on the fly, a piece of the C# compiler toolchain called a
+<span class="term">Roslyn incremental source generator</span> reads your declaration <em>while your
+project builds</em> and writes the actual mapping method for you, as ordinary C# source code, before
+your program ever runs.</p>
+<div class="callout win">
+  <strong>The one-sentence version:</strong> AutoMapper answers "how do I map this?" every time your
+  program runs. Mapwright answers it once, when you build, and from then on your compiled program is
+  just calling a plain method someone (the generator) already wrote.
+</div>
+
+<h2>5. Mapwright's architecture — how it actually works</h2>
+<p>Mapwright ships as <strong>two NuGet packages</strong> with very different jobs:</p>
+<table>
+  <tr><th>Package</th><th>Role</th></tr>
+  <tr>
+    <td><code>Mapwright</code></td>
+    <td>Just the attributes: <code>[Mapper]</code>, <code>[MapIgnore]</code>,
+    <code>[MapIgnoreSource]</code>, <code>[MapProperty]</code>, <code>[AfterMap]</code>. This is the
+    <em>vocabulary</em> you write your declarations in. Nothing in this package executes at runtime —
+    it compiles down to metadata only, so it costs nothing when your program runs and is safe to use
+    with Native AOT/trimming.</td>
+  </tr>
+  <tr>
+    <td><code>Mapwright.Generator</code></td>
+    <td>The actual engine — but it only runs <em>during your build</em>, inside the compiler process,
+    never inside your shipped application (it's referenced with
+    <code>PrivateAssets="all"</code>, meaning it doesn't even become a dependency of your output).</td>
+  </tr>
+</table>
+
+<h3>5.1 What happens, in order, when you build</h3>
+<p>Say you write this in your project (nothing here executes anything — it's a declaration, like an
+interface):</p>
+<pre><code><span class="at">[Mapper]</span>
+<span class="kw">public static partial class</span> <span class="ty">EmployeeMapper</span>
+{
+    <span class="kw">public static partial</span> <span class="ty">EmployeeDto</span> ToDto(<span class="ty">Employee</span> source);
+}</code></pre>
+<p>Notice the method has <strong>no body</strong> — just a signature ending in <code>;</code>. That's a
+C# <span class="term">partial method</span>: half the method lives in the file you wrote, and Mapwright
+is going to write the other half for you as a separate file that the compiler stitches back together
+into the same class. Here is what produces that other half, step by step:</p>
+<ol class="steps">
+  <li><strong>Find every <code>[Mapper]</code> class.</strong> The generator's entry point
+      (<code>MapwrightGenerator</code>) asks the compiler for every class decorated with
+      <code>[Mapper]</code>, and for each one, every <code>static partial</code> method inside it that
+      doesn't have a body yet.</li>
+  <li><strong>Plan each method.</strong> For every such method, a component called
+      <code>MapPlanner</code> looks at the real source and destination types via the compiler's
+      semantic model (the same information the IDE uses for autocomplete) and works out, property by
+      property: does a same-named property exist on both sides (case-insensitively)? Is one of them
+      inherited from a base class? Does a <code>bool?</code> need to collapse to a <code>bool</code>?
+      Is this property covered by <code>[MapIgnore]</code>, renamed by <code>[MapProperty]</code>, or
+      does it point at a nested object/collection that needs its own sibling map? The result is an
+      in-memory model of exactly what the generated code should look like — nothing is written yet.</li>
+  <li><strong>Check the plan for problems.</strong> If a destination property has nowhere to come from,
+      an ignore list names a property that no longer exists, or a collection map is missing the element
+      map it depends on, the planner records a <span class="term">diagnostic</span> — the same kind of
+      warning/error you already see for ordinary C# mistakes, identified by an ID like
+      <code>MW0001</code>. These show up directly in your IDE and fail the build if severe enough,
+      <strong>before your code ever runs.</strong></li>
+  <li><strong>Emit real C#.</strong> If the plan is usable, <code>MapwrightGenerator.Emit</code> writes
+      out an ordinary <code>.cs</code> file — object initializers, null checks, <code>GetValueOrDefault()</code>
+      calls, nothing exotic — containing the missing half of your partial method. This file is added to
+      your compilation automatically and is visible in the IDE (in Visual Studio: your project →
+      <em>Dependencies → Analyzers → Mapwright.Generator</em>). By default it lives only inside the
+      compilation; if you also want it written to disk under <code>obj/generated/</code>, add
+      <code>&lt;EmitCompilerGeneratedFiles&gt;true&lt;/EmitCompilerGeneratedFiles&gt;</code> and
+      <code>&lt;CompilerGeneratedFilesOutputPath&gt;$(BaseIntermediateOutputPath)generated&lt;/CompilerGeneratedFilesOutputPath&gt;</code>
+      to your <code>.csproj</code> (Mapwright's own test project does exactly this). Either way, you never
+      have to open it for the mapper to work.</li>
+  <li><strong>Compile normally.</strong> From this point on there is nothing special about your program:
+      it's a static method call to plain, ordinary, generated C#. No attributes are read, no reflection
+      happens, nothing is cached — because there is nothing left to do at runtime.</li>
+</ol>
+<div class="callout">
+  <strong>Why "incremental"?</strong> Steps 1–4 only re-run for a <code>[Mapper]</code> class whose
+  declaration or referenced model types actually changed since the last build. In a large solution with
+  many mappers, editing one file doesn't force every mapper to regenerate — which is what keeps build
+  times sane as the codebase grows.
+</div>
+
+<h2>6. The four things you can declare</h2>
+<p>Every Mapwright declaration is one of four method shapes. You never write the body — the shape of
+the signature tells the generator which one you mean:</p>
+<table>
+  <tr><th>You write (no body)</th><th>You get</th><th>Use it for</th></tr>
+  <tr>
+    <td><code>static partial TDest Name(TSource s);</code></td>
+    <td>A brand-new object, built with an object initializer.</td>
+    <td>Entity → DTO, DTO → domain model, etc.</td>
+  </tr>
+  <tr>
+    <td><code>static partial void Name(TSource s, TDest t);</code></td>
+    <td>An in-place copy onto an existing instance.</td>
+    <td>Updating an EF-tracked entity from an incoming DTO without replacing the tracked instance.</td>
+  </tr>
+  <tr>
+    <td><code>static partial Expression&lt;Func&lt;TSource,TDest&gt;&gt; Name();</code></td>
+    <td>A LINQ expression tree, not a compiled method.</td>
+    <td>Passing to EF Core's <code>.Select(...)</code> so the mapping becomes part of the SQL query —
+    the direct replacement for AutoMapper's <code>ProjectTo</code>.</td>
+  </tr>
+  <tr>
+    <td><code>static partial List&lt;TDest&gt; Name(IEnumerable&lt;TSource&gt; s);</code><br>
+        <span style="color:var(--muted);font-size:.85em">(a <code>TDest[]</code> array return works too)</span></td>
+    <td>A <code>Select</code> over the matching object map, materialized into the list or array.</td>
+    <td>Mapping a collection — requires the single-item object map to already exist in the same class
+        (unless source and destination element types are identical, where no element map is needed).</td>
+  </tr>
+</table>
+
+<h3>6.1 The attributes</h3>
+<table>
+  <tr><th>Attribute</th><th>Meaning</th></tr>
+  <tr><td><code>[Mapper]</code></td><td>Marks the class as one the generator should look at.</td></tr>
+  <tr><td><code>[MapIgnore(nameof(D.Prop), ...)]</code></td><td>These destination properties are set by
+      hand somewhere else (or not at all) — don't warn about them. Naming a property that no longer
+      exists is a build <strong>error</strong>, so an outdated ignore list can never rot silently.</td></tr>
+  <tr><td><code>[MapIgnoreSource(nameof(S.Prop), ...)]</code></td><td>Documents that a source property is
+      deliberately never read by this map.</td></tr>
+  <tr><td><code>[MapProperty("SourceName", "DestName")]</code></td><td>The property names genuinely
+      differ — a real rename, not a typo.</td></tr>
+  <tr><td><code>[AfterMap(nameof(Method))]</code></td><td>After the generated assignments run, call this
+      ordinary hand-written method — a <code>static void Method(TSource source, TDest result)</code> in
+      the same mapper class — to fill in anything a generator shouldn't guess (computed values,
+      timestamps, values that come from somewhere other than the source object). Not allowed on
+      projections: an expression tree EF translates to SQL can't call your method.</td></tr>
+</table>
+
+<h2>7. How to use Mapwright — a full walkthrough</h2>
+
+<h3>Step 1 — Install the two packages</h3>
+<pre><code><span class="dg">&lt;ItemGroup&gt;</span>
+  <span class="dg">&lt;PackageReference</span> Include=<span class="st">"Mapwright"</span> Version=<span class="st">"0.1.0"</span> <span class="dg">/&gt;</span>
+  <span class="dg">&lt;PackageReference</span> Include=<span class="st">"Mapwright.Generator"</span> Version=<span class="st">"0.1.0"</span> PrivateAssets=<span class="st">"all"</span> <span class="dg">/&gt;</span>
+<span class="dg">&lt;/ItemGroup&gt;</span></code></pre>
+<p><code>PrivateAssets="all"</code> on the generator package means "use this while building, but don't
+make consumers of my project reference it too" — the standard way any analyzer/generator is referenced.</p>
+
+<h3>Step 2 — Have your two shapes ready</h3>
+<pre><code><span class="kw">public class</span> <span class="ty">Employee</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> FirstName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> LastName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public bool</span>? IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> Notes { <span class="kw">get</span>; <span class="kw">set</span>; }   <span class="cm">// internal-only, never leaves the API</span>
+}
+
+<span class="kw">public class</span> <span class="ty">EmployeeDto</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> FirstName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> LastName { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public bool</span> IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }
+}</code></pre>
+
+<h3>Step 3 — Declare the mapper</h3>
+<pre><code><span class="at">[Mapper]</span>
+<span class="kw">public static partial class</span> <span class="ty">EmployeeMapper</span>
+{
+    <span class="cm">// Notes has nowhere to go on EmployeeDto on purpose — say so explicitly.</span>
+    <span class="at">[MapIgnoreSource(</span><span class="kw">nameof</span>(<span class="ty">Employee</span>.Notes)<span class="at">)]</span>
+    <span class="kw">public static partial</span> <span class="ty">EmployeeDto</span> ToDto(<span class="ty">Employee</span> source);
+
+    <span class="kw">public static partial</span> <span class="ty">List</span>&lt;<span class="ty">EmployeeDto</span>&gt; ToDtos(<span class="ty">IEnumerable</span>&lt;<span class="ty">Employee</span>&gt; source);
+}</code></pre>
+<p>That's the entire file. No constructor, no registration, nothing to inject.</p>
+
+<h3>Step 4 — Build, and read what the generator wrote</h3>
+<p>Build the project. Mapwright generates a file named
+<code>YourNamespace.EmployeeMapper.Mapwright.g.cs</code> containing this (the real file fully
+qualifies every type as <code>global::System.ArgumentNullException</code>,
+<code>global::YourNamespace.EmployeeDto</code> etc. — shortened here for readability):</p>
+<pre><code><span class="cm">// &lt;auto-generated by Mapwright — the mapping code below is yours to read, debug, and step through /&gt;</span>
+<span class="kw">public static partial class</span> <span class="ty">EmployeeMapper</span>
+{
+    <span class="kw">public static partial</span> <span class="ty">EmployeeDto</span> ToDto(<span class="ty">Employee</span> source)
+    {
+        <span class="ty">ArgumentNullException</span>.ThrowIfNull(source);
+        <span class="kw">var</span> result = <span class="kw">new</span> <span class="ty">EmployeeDto</span>
+        {
+            Id = source.Id,
+            FirstName = source.FirstName,
+            LastName = source.LastName,
+            IsActive = source.IsActive.GetValueOrDefault(),   <span class="cm">// bool? → bool, visibly</span>
+        };
+        <span class="kw">return</span> result;
+    }
+
+    <span class="kw">public static partial</span> <span class="ty">List</span>&lt;<span class="ty">EmployeeDto</span>&gt; ToDtos(<span class="ty">IEnumerable</span>&lt;<span class="ty">Employee</span>&gt; source)
+    {
+        <span class="ty">ArgumentNullException</span>.ThrowIfNull(source);
+        <span class="kw">return</span> <span class="ty">Enumerable</span>.ToList(<span class="ty">Enumerable</span>.Select(source, ToDto));
+    }
+}</code></pre>
+<p>This is exactly the code you would have written by hand — which is the point. You can put a
+breakpoint on the <code>var result = new EmployeeDto</code> line and step through it like any other
+method, because it <em>is</em> any other method.</p>
+
+<h3>Step 5 — Call it like a normal static method</h3>
+<pre><code><span class="kw">public class</span> <span class="ty">EmployeeService</span>
+{
+    <span class="kw">public</span> <span class="ty">EmployeeDto</span> GetDto(<span class="ty">Employee</span> employee)
+        =&gt; <span class="ty">EmployeeMapper</span>.ToDto(employee);
+
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">EmployeeDto</span>&gt; GetDtos(<span class="ty">IEnumerable</span>&lt;<span class="ty">Employee</span>&gt; employees)
+        =&gt; <span class="ty">EmployeeMapper</span>.ToDtos(employees);
+}</code></pre>
+<p>No <code>IMapper</code>, no DI registration, no interface to mock in tests — it's a plain static
+method, so tests call it directly.</p>
+
+<h3>Step 6 — Watch what happens when the models drift</h3>
+<p>Now add a new property to <code>EmployeeDto</code>, say <code>string Department</code>, and rebuild.
+The IDE underlines <code>ToDto</code> with:</p>
+<div class="callout warn"><code>MW0001: Destination property 'Department' on 'EmployeeDto' is not mapped by 'ToDto'.
+Map it, add it to [MapIgnore], or set it in an [AfterMap] method.</code></div>
+<p>This is the entire point of the exercise: the thing that used to fail silently, or fail only if a
+test remembered to check, is now a build-time warning the moment it happens. You have three honest ways
+to resolve it:</p>
+<ol>
+  <li><strong>Map it for real</strong> — add a matching property to <code>Employee</code>, or
+      <code>[MapProperty]</code> if the name differs.</li>
+  <li><strong>Ignore it on purpose</strong> — <code>[MapIgnore(nameof(EmployeeDto.Department))]</code>,
+      if it's genuinely not this map's job.</li>
+  <li><strong>Compute it</strong> — leave it ignored by the generator and set it in an
+      <code>[AfterMap]</code> method, for anything that isn't a straight copy from the source object.</li>
+</ol>
+
+<h2>8. Reading the diagnostics</h2>
+<table>
+  <tr><th>Id</th><th>Severity</th><th>Meaning</th></tr>
+  <tr><td><code>MW0001</code></td><td class="sev warn">Warning</td><td>A destination property has nothing mapping to it. Map it, <code>[MapIgnore]</code> it, or set it in <code>[AfterMap]</code>.</td></tr>
+  <tr><td><code>MW0002</code></td><td class="sev info">Info</td><td>A source property is never read by anything. <code>[MapIgnoreSource]</code> documents that this is intentional.</td></tr>
+  <tr><td><code>MW0003</code></td><td class="sev err">Error</td><td>An ignore/rename attribute names a property that doesn't exist anymore — the classic "stale config" bug, now impossible to leave in place.</td></tr>
+  <tr><td><code>MW0004</code></td><td class="sev err">Error</td><td>Two matched properties have types that can't be converted between.</td></tr>
+  <tr><td><code>MW0005</code></td><td class="sev err">Error</td><td>The method signature doesn't match any of the four recognized shapes.</td></tr>
+  <tr><td><code>MW0006</code></td><td class="sev warn">Warning</td><td>An in-place copy can't set an <code>init</code>-only property — it can only be set at construction.</td></tr>
+  <tr><td><code>MW0007</code></td><td class="sev err">Error</td><td>A projection would recurse forever (e.g. two types that map into each other).</td></tr>
+  <tr><td><code>MW0008</code></td><td class="sev err">Error</td><td>A collection map's element type doesn't have its own object map declared yet.</td></tr>
+  <tr><td><code>MW0009</code></td><td class="sev err">Error</td><td>An <code>[AfterMap]</code> method is missing, isn't a <code>static void (TSource, TDest)</code> in the mapper class — or was placed on a projection, where it can never run.</td></tr>
+</table>
+<p>Once your team trusts the workflow, promote the main one to a hard error in
+<code>.editorconfig</code> so an unmapped property can never merge at all:</p>
+<pre><code>dotnet_diagnostic.MW0001.severity = error</code></pre>
+
+<h2>9. AutoMapper → Mapwright cheat sheet</h2>
+<div class="overflow">
+<table>
+  <tr><th>AutoMapper</th><th>Mapwright</th></tr>
+  <tr><td><code>CreateMap&lt;S, D&gt;()</code> in a <code>Profile</code></td><td><code>static partial D Map(S source);</code> in a <code>[Mapper]</code> class</td></tr>
+  <tr><td><code>ForMember(d =&gt; d.P, o =&gt; o.Ignore())</code></td><td><code>[MapIgnore(nameof(D.P))]</code></td></tr>
+  <tr><td><code>ForMember(d =&gt; d.P, o =&gt; o.MapFrom(s =&gt; s.Q))</code></td><td><code>[MapProperty("Q", "P")]</code>, or <code>[AfterMap]</code> for anything computed</td></tr>
+  <tr><td><code>Map(source, existingTarget)</code> (update)</td><td><code>static partial void Copy(S source, D target);</code></td></tr>
+  <tr><td><code>ProjectTo&lt;D&gt;(queryable)</code></td><td><code>static partial Expression&lt;Func&lt;S,D&gt;&gt; Projection();</code> + <code>.Select(...)</code></td></tr>
+  <tr><td><code>IMapper</code> injected via DI</td><td>Nothing — call the static method directly</td></tr>
+  <tr><td><code>AssertConfigurationIsValid()</code> test</td><td>The compiler, on every build</td></tr>
+</table>
+</div>
+
+<div class="callout">
+  <strong>Want the deeper dive?</strong> <a href="replacing-automapper.html">docs/replacing-automapper.html</a>
+  walks through a real production migration of an eight-entity AutoMapper configuration to Mapwright,
+  including the exact before/after code and the numbers that came out of it.
+</div>
+
+<div class="foot">
+  Mapwright · MIT licensed · <a href="https://github.com/lodestar-labs/Mapwright">github.com/lodestar-labs/Mapwright</a>
+</div>
+
+</div>
+</body>
+</html>
