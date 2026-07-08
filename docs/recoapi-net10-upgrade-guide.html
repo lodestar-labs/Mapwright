@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecoApi → .NET 10 — Upgrade Runbook for Engineers</title>
+<style>
+  :root {
+    --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8;
+    --codeink:#22223a; --shell:#1b1e2b; --shellink:#e6e6ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26;
+      --code:#20202c; --codeink:#dcdce8; --shell:#0e0e16; --shellink:#e6e6ef;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 2rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.45rem; margin: 3rem 0 .7rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; scroll-margin-top: 1rem; }
+  h3 { font-size: 1.14rem; margin: 1.9rem 0 .4rem; }
+  h4 { font-size: 1rem; margin: 1.3rem 0 .3rem; color: var(--acc2); }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1.02rem; }
+  p, li { font-size: .96rem; }
+  a { color: var(--acc); }
+  table { border-collapse: collapse; width: 100%; margin: .9rem 0 1.3rem; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  code { background: var(--code); color: var(--codeink); padding: .12rem .38rem; border-radius: 4px; font-size: .88em; font-family: "Cascadia Code", Consolas, monospace; }
+  pre { background: var(--code); color: var(--codeink); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .84rem; line-height: 1.5; font-family: "Cascadia Code", Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  pre.shell { background: var(--shell); color: var(--shellink); }
+  pre.shell .p { color: #6ee7a8; } /* prompt */
+  pre.shell .c { color: #8b93b3; } /* comment */
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok   { border-left-color: var(--ok); }
+  .card.warn { border-left-color: var(--warn); }
+  .card.bad  { border-left-color: var(--bad); }
+  .card.tip  { border-left-color: var(--acc2); }
+  .card h4 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); margin-right: .35rem; vertical-align: middle; letter-spacing: .03em; }
+  .tag.ok  { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.auto{ background: color-mix(in srgb, var(--acc2) 18%, transparent); color: var(--acc2); }
+  .tag.man { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .muted { color: var(--mut); font-size: .88rem; }
+  .del { color: var(--bad); } .add { color: var(--ok); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding: .2rem 0 1rem 3rem; margin: 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: .1rem; width: 2rem; height: 2rem; background: var(--acc); color: #fff; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem; }
+  .steps > li::after { content: ""; position: absolute; left: .97rem; top: 2.3rem; bottom: -.2rem; width: 2px; background: var(--line); }
+  .steps > li:last-child::after { display: none; }
+  .toc { columns: 2; column-gap: 2rem; font-size: .92rem; padding: 1rem 1.2rem; }
+  .toc a { text-decoration: none; }
+  .toc li { margin: .2rem 0; }
+  .chk { list-style: none; padding-left: 0; }
+  .chk li { padding-left: 1.8rem; position: relative; margin: .35rem 0; }
+  .chk li::before { content: "☐"; position: absolute; left: 0; font-size: 1.1rem; color: var(--acc); }
+  kbd { background: var(--card); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: .05rem .4rem; font-size: .82em; font-family: monospace; }
+  .lede { font-size: 1.05rem; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .pill { border: 1px solid var(--line); border-radius: 20px; padding: .25rem .8rem; font-size: .82rem; background: var(--card); }
+  details { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: .7rem 0; background: var(--card); }
+  summary { cursor: pointer; font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>RecoApi&nbsp;→&nbsp;.NET&nbsp;10 — Upgrade Runbook</h1>
+<p class="sub">A step-by-step guide for a junior engineer to upgrade a local RecoApi host + its modules
+from <b>.NET&nbsp;6</b> to <b>.NET&nbsp;10</b>, using the <code>Migrate-RecoApi.ps1</code> helper for the
+mechanical work and doing the two bespoke bits by hand — with every test and every likely error and its fix.</p>
+
+<div class="card tip">
+  <h4>Read this first — the one thing that matters</h4>
+  <p style="margin-bottom:0">RecoApi is a <b>plugin host</b>: the service loads each Filter/Subscriber module at runtime with
+  <code>Assembly.LoadFile</code>. That means the host and <b>every</b> module run in the <b>same process</b> and must
+  agree on the versions of shared assemblies (EF Core, Microsoft.Extensions.*, Newtonsoft.Json). This is
+  the <b>“same-process rule.”</b> Break it and the app builds fine but throws <code>TypeLoadException</code> /
+  <code>MissingMethodException</code> the moment a module is loaded. The whole migration is designed around keeping
+  those versions <b>identical everywhere</b> — the script enforces it, and you must not undo it by hand.</p>
+</div>
+
+<h2 id="toc">Contents</h2>
+<ol class="toc">
+  <li><a href="#picture">The big picture</a></li>
+  <li><a href="#differs">Your repo will differ — why that's fine</a></li>
+  <li><a href="#prereq">Before you start (prerequisites)</a></li>
+  <li><a href="#map">Step 0 — Map your repository</a></li>
+  <li><a href="#baseline">Step 1 — Green .NET 6 baseline</a></li>
+  <li><a href="#script">Step 2 — Run the script (Part A)</a></li>
+  <li><a href="#email">Step 3 — EmailSink rewrite (manual)</a></li>
+  <li><a href="#build">Step 4 — Build in the right order</a></li>
+  <li><a href="#partb">Step 5 — AutoMapper → Mapperly (Part B, manual)</a></li>
+  <li><a href="#test">Step 6 — The test ladder</a></li>
+  <li><a href="#trouble">Error navigation (troubleshooting)</a></li>
+  <li><a href="#rollback">Rollback &amp; safety net</a></li>
+  <li><a href="#finish">Finish &amp; merge checklist</a></li>
+  <li><a href="#appendix">Appendix — versions &amp; script reference</a></li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="picture">1. The big picture</h2>
+<p>Going from .NET 6 to .NET 10 crosses four annual releases. <b>Almost no application logic changes</b> —
+C# and the base libraries are backward-compatible. What actually breaks is the <i>ecosystem around</i> the code:
+NuGet packages jump several major versions, a few security defaults flipped, and one old reflection-based library
+stops working at runtime. The migration is split into two parts so that regressions stay attributable:</p>
+
+<table>
+<tr><th>Part</th><th>What</th><th>How it's done here</th></tr>
+<tr>
+  <td><b>Part&nbsp;A</b><br><span class="tag auto">MOSTLY AUTOMATED</span></td>
+  <td>Retarget to <code>net10.0</code>; align every NuGet package; fix HintPaths; harden connection strings;
+      two tiny code edits; one email-sink rewrite.</td>
+  <td>The <code>Migrate-RecoApi.ps1</code> script does all of it except the email-sink rewrite, which it
+      <b>flags</b> for you (Step 3).</td>
+</tr>
+<tr>
+  <td><b>Part&nbsp;B</b><br><span class="tag man">MANUAL</span></td>
+  <td>Replace <b>AutoMapper</b> (which crashes at runtime on .NET 10 <i>and</i> has a security advisory and a
+      commercial-license change) with <b>Mapperly</b>, a compile-time source generator.</td>
+  <td>Bespoke per subscriber — the script produces an <b>inventory worklist</b>, but a human converts each map
+      and verifies it (Step 5).</td>
+</tr>
+</table>
+
+<div class="card bad">
+  <h4>The trap that makes Part B non-optional</h4>
+  <p style="margin-bottom:.4rem">AutoMapper 11.0.1 <b>builds green on .NET 10 but throws at first use</b>. Its config scanner
+  reflects over LINQ and calls <code>MakeGenericMethod</code> with your entity types; .NET's newer struct-constrained
+  internal overloads reject that:</p>
+  <pre><code>System.TypeInitializationException
+ ---> System.Security.VerificationException: Method System.Linq.Enumerable.MaxInteger:
+      type argument 'DatedRecord' violates the constraint of type parameter 'T'.</code></pre>
+  <p style="margin-bottom:0">So a repo that only did Part A will <b>start</b> and then die the moment any mapper is used. You must do Part B
+  before the service is usable. (It doesn't surface in a quick smoke test only because SQL Server connects first.)</p>
+</div>
+
+<h4>The honest boundary</h4>
+<p>The service opens SQL Server during startup (the persistent queue and the MSSqlServer log sink both create
+tables). <b>Full runtime verification therefore requires a machine that can reach your dev SQL Server.</b> Everything
+up to the first DB call — config load, Serilog init, module loading — can be checked anywhere. Plan to do Step 6's
+runtime items on a DB-connected box.</p>
+
+<!-- ============================================================= -->
+<h2 id="differs">2. Your repo will differ from the reference — why that's fine</h2>
+<p>The reference migration was done on a copy with 4 modules. <b>Your production repo may have hundreds of subscribers,
+maybe an extra authentication layer, or slightly different folder names.</b> That's expected. The script is
+<b>discovery-based</b>: it globs for <i>every</i> <code>*.csproj</code> and <code>appsettings*.json</code> it can find and
+transforms each one the same way, so the number of modules does not matter. What must be <b>the same</b> for this
+runbook to apply (and it is, by design of RecoApi) is the <i>architecture</i>:</p>
+<div class="pill-row">
+  <span class="pill">✔ Plugin loading via <code>Assembly.LoadFile</code></span>
+  <span class="pill">✔ Generic Host + <code>Startup</code> bootstrap</span>
+  <span class="pill">✔ Persistent queue on SQL Server</span>
+  <span class="pill">✔ Modules output into the host's <code>Modules\</code> folders</span>
+  <span class="pill">✔ EF Core + Newtonsoft shared host↔module</span>
+</div>
+<p>If your repo added an <b>authentication layer</b>, it is just more projects/packages — the script will retarget
+them and align any <code>Microsoft.*</code> packages via its wildcard rules. Only if auth pulls in a
+<i>third-party</i> package that isn't in the version map will you need to bump it by hand (the build will tell you;
+see <a href="#trouble">troubleshooting</a>). Nothing about auth changes the steps below.</p>
+
+<!-- ============================================================= -->
+<h2 id="prereq">3. Before you start</h2>
+<ul class="chk">
+  <li><b>.NET 10 SDK installed.</b> Verify: <code>dotnet --list-sdks</code> shows a <code>10.x</code> line.</li>
+  <li><b>Windows PowerShell 5.1+</b> (built into Windows) or PowerShell 7. Check: <code>$PSVersionTable.PSVersion</code>.</li>
+  <li><b>Git</b>, and a <b>clean working tree</b> in both repos (<code>git status</code> shows nothing to commit).</li>
+  <li><b>Both repos cloned side by side</b>, in the layout the modules expect (module HintPaths point at
+      <code>..\..\..\RecoApi\...</code>, i.e. the modules repo sits next to the host repo). Keep that layout.</li>
+  <li><b>Access to the dev SQL Server</b> for the final runtime tests (Step 6). Earlier steps don't need it.</li>
+  <li>Copy <code>Migrate-RecoApi.ps1</code> somewhere handy (it does not need to live inside either repo).</li>
+</ul>
+
+<div class="card warn">
+  <h4>PowerShell execution policy</h4>
+  <p style="margin-bottom:0">If PowerShell refuses to run the script (“running scripts is disabled”), launch it for this one process only:
+  <br><code>powershell -ExecutionPolicy Bypass -File .\Migrate-RecoApi.ps1 ...</code></p>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="map">Step 0 — Map your repository</h2>
+<p>Spend five minutes locating the pieces so the later errors make sense. In the <b>host</b> repo you should find:</p>
+<pre class="shell"><span class="c"># the host solution and its ~11 projects</span>
+RECO.API.sln
+src\Service\RECO.API.Service          <span class="c"># the web host — this is what you run</span>
+src\Infrastructure\RECO.API.ModulesLoading   <span class="c"># the Assembly.LoadFile plugin loader</span>
+src\Infrastructure\RECO.API.PersistentQueue  <span class="c"># the SQL-backed queue</span>
+src\Common\RECO.API.Utils\EmailSink   <span class="c"># the custom Serilog email sink (manual rewrite lives here)</span>
+src\Service\RECO.API.Service\appsettings.json <span class="c"># connection strings + module folder paths</span></pre>
+<p>In the <b>modules</b> repo, each subscriber/filter is its own project that <i>builds into</i> the host's
+<code>Modules\Subscribers\&lt;Name&gt;</code> or <code>Modules\Filters\&lt;Name&gt;</code> folder (via <code>OutputPath</code>),
+and references host DLLs by <code>&lt;HintPath&gt;</code>. Confirm you can see many such module folders — that's your
+per-subscriber Part B workload.</p>
+
+<!-- ============================================================= -->
+<h2 id="baseline">Step 1 — Establish a green .NET 6 baseline</h2>
+<p>Do <b>not</b> start upgrading on top of a repo that doesn't already build. If it's red on .NET 6, you won't be
+able to tell upgrade errors from pre-existing ones.</p>
+<ol class="steps">
+  <li>Build the host solution on its current framework: <code>dotnet build RECO.API.sln -c Debug</code>. It must succeed.</li>
+  <li>Build each module. If a module fails with <code>CS0311</code> (“the type cannot be used as type parameter…”),
+      that's <b>pre-existing model drift</b>, not the upgrade. The reference repo hit exactly this: a persistence model
+      had lost an interface marker its generic pipeline needs. Fix it the same way every sibling model is written —
+      e.g. <code>public partial class RelType : IDataRecordWithRelationships</code> — then rebuild. Record a green baseline.</li>
+  <li>Commit the baseline (or at least confirm <code>git status</code> is clean) so the script can create its branch.</li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="script">Step 2 — Run the script (Part A)</h2>
+
+<h3>2a. Dry run first — it writes nothing</h3>
+<p>Dry-run is the default. It prints exactly what it <i>would</i> change, so you can eyeball it before committing.</p>
+<pre class="shell"><span class="p">PS&gt;</span> .\Migrate-RecoApi.ps1 -HostRepo C:\src\RecoApi -ModulesRepo C:\src\RecoApiModules</pre>
+<p>Read the output. Every project should show either a <code>WOULD ... (TFM net6.0-&gt;net10.0; ...)</code> line or
+<code>already migrated</code>. If a project you expected is missing, check it isn't under a <code>bin\</code>/<code>obj\</code>
+folder (those are skipped on purpose).</p>
+
+<h3>2b. Apply</h3>
+<p>When the dry run looks right, add <code>-Apply</code>. The script now: creates/checks out the
+<code>net10-upgrade</code> branch in each repo, backs up every file it touches to a <code>.recobak</code> sibling,
+makes the edits, then builds host-then-modules as a gate.</p>
+<pre class="shell"><span class="p">PS&gt;</span> .\Migrate-RecoApi.ps1 -HostRepo C:\src\RecoApi -ModulesRepo C:\src\RecoApiModules -Apply</pre>
+
+<div class="card warn">
+  <h4>Expect the build gate to be RED on this first run — that is normal</h4>
+  <p style="margin-bottom:0">If your repo has the custom EmailSink (most do), the gate will report the host build
+  FAILED with <code>CS0246: 'EmailConnectionInfo' could not be found</code> — that is precisely the Step&nbsp;3 work you
+  haven't done yet. Because the Application project depends on Utils, <b>every</b> module will then also fail with a
+  wall of <code>CS0246: 'RECO' could not be found</code> errors. Don't chase those: they are a <b>cascade</b> from the
+  single EmailSink error (the host DLLs the modules reference were never produced). Do Step&nbsp;3, <b>commit your
+  work on the <code>net10-upgrade</code> branch</b> (the script's preflight requires a clean tree; delete the
+  <code>*.recobak</code>/log/csv artifacts first so they stay out of the commit), then re-run the script — it reports
+  every file "already migrated" and the gate goes GREEN. This exact RED→fix→GREEN sequence was reproduced when
+  validating this runbook.</p>
+</div>
+
+<h3>2c. What the script changed</h3>
+<table>
+<tr><th>#</th><th>Change</th><th>Detail</th></tr>
+<tr><td>1</td><td>Target framework</td><td><code>net6.0</code> → <code>net10.0</code> in every discovered project.</td></tr>
+<tr><td>2</td><td>HintPaths made framework-agnostic</td><td><code>bin\Debug\net6.0\…</code> →
+    <code>bin\$(Configuration)\$(TargetFramework)\…</code> so a module can never silently bind a stale net6 host DLL.
+    (A <code>netcoreapp2.2</code> reference like ResSchemaGenerator is intentionally left alone.)</td></tr>
+<tr><td>3</td><td>Package versions aligned</td><td>From the version map (see <a href="#appendix">appendix</a>). Host and
+    every module get <b>identical</b> versions — the same-process rule.</td></tr>
+<tr><td>4</td><td>Connection strings hardened</td><td>Appends <code>TrustServerCertificate=True;</code> to any SQL
+    connection string that lacks encryption settings — including log-sink connection strings (safe: it only relaxes
+    cert validation, and those sinks open SQL too).</td></tr>
+<tr><td>5</td><td>Module paths made relative</td><td>Absolute dev-machine paths like
+    <code>C:\Work\Kadji\…\Modules\Filters</code> → <code>Modules\Filters</code>. Paired with the loader edit below.</td></tr>
+<tr><td>6</td><td>Two code edits</td><td><code>using Microsoft.OpenApi.Models;</code> →
+    <code>using Microsoft.OpenApi;</code> (Swashbuckle 10 flattened the namespace); and the module loader now resolves
+    relative paths to absolute with <code>Path.GetFullPath(path, AppContext.BaseDirectory)</code> —
+    <code>Assembly.LoadFile</code> rejects relative paths.</td></tr>
+</table>
+
+<div class="card">
+  <h4>What the script deliberately does <u>not</u> do</h4>
+  <ul style="margin-bottom:0">
+    <li><b>The EmailSink rewrite</b> — a real code change; the script <span class="tag man">flags</span> the files
+        as <code>TODO</code> instead of guessing. → Step 3.</li>
+    <li><b>Part B (AutoMapper → Mapperly)</b> — it writes an <code>automapper-inventory-*.csv</code> worklist and stops.
+        → Step 5.</li>
+    <li><b>Pre-existing drift fixes</b> — those are yours to make in Step 1.</li>
+  </ul>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="email">Step 3 — Rewrite the custom EmailSink (manual)</h2>
+<p><span class="tag man">MANUAL</span> Skip this step only if your repo has no custom email sink (the script's summary
+will not list any <code>Serilog.Sinks.Email</code> TODO). Otherwise: Serilog.Sinks.Email 4.x moved from
+<code>System.Net.Mail</code> to <b>MailKit</b> and deleted <code>EmailConnectionInfo</code>. The sink is bound
+<i>by name</i> from <code>appsettings.json</code>, so <b>you keep the settings property names and the extension-method
+name identical</b> — no config file edits — and only rewrite the internals. Here is the exact target:</p>
+
+<h4>EmailSinkSettings.cs — the conversion method</h4>
+<pre><code>// using MailKit.Security;  Serilog.Sinks.Email;  Serilog.Formatting.Display;  System.Net;
+public EmailSinkOptions ToEmailSinkOptions()
+{
+    var result = new EmailSinkOptions
+    {
+        From = FromEmail,
+        To   = new List&lt;string&gt; { ToEmail },
+        Host = MailServer,
+        Port = Port,
+        // EnableSsl=true  → Auto (MailKit negotiates SSL/STARTTLS from the port)
+        // EnableSsl=false → None (plain SMTP, matching the old default on port 25)
+        ConnectionSecurity = EnableSsl ? SecureSocketOptions.Auto : SecureSocketOptions.None,
+        IsBodyHtml = IsBodyHtml,
+        // 4.x subjects are Serilog message templates, not plain strings:
+        Subject = new MessageTemplateTextFormatter(EmailSubject ?? "Log Email"),
+    };
+    // old sink only set credentials when UseDefaultCredentials was false — preserve that:
+    if (!UseDefaultCredentials)
+        result.Credentials = new NetworkCredential(Username, Password);
+    return result;
+}</code></pre>
+
+<h4>EmailSinkExtensions.cs — the registration (name + signature unchanged)</h4>
+<pre><code>public static LoggerConfiguration EmailSink(this LoggerSinkConfiguration loggerConfiguration,
+                                            EmailSinkSettings emailSinkSettings)
+{
+    if (emailSinkSettings == null) throw new ArgumentNullException(nameof(emailSinkSettings));
+    var options = emailSinkSettings.ToEmailSinkOptions();
+    options.ServerCertificateValidationCallback = ValidateServerCertificate;
+    return loggerConfiguration.Email(options, restrictedToMinimumLevel: emailSinkSettings.MinimumLogLevel);
+}
+
+private static bool ValidateServerCertificate(object sender, X509Certificate certificate,
+                                              X509Chain chain, SslPolicyErrors sslPolicyErrors) =&gt; true;</code></pre>
+<p class="muted">This is the only compile error you should see in the host after Part A. Once it's in, the host
+compiles. (You still have Part B before it <i>runs</i>.)</p>
+
+<!-- ============================================================= -->
+<h2 id="build">Step 4 — Build in the right order</h2>
+<div class="card warn">
+  <h4>Order matters, and “stop the app first”</h4>
+  <p>Modules reference the host's DLLs by HintPath, so <b>build the host first, then the modules</b>. And because a
+  <b>running</b> host locks <code>RECO.API.*.dll</code>, a rebuild will fail with <code>MSB3021</code>/<code>MSB3027</code>
+  file-lock errors — <b>those are not compile errors</b>. Stop the service before rebuilding.</p>
+</div>
+<pre class="shell"><span class="c"># stop any running host (Windows)</span>
+<span class="p">PS&gt;</span> taskkill /F /IM RECO.API.Service.exe   <span class="c"># name may differ; check Task Manager</span>
+
+<span class="c"># 1) host</span>
+<span class="p">PS&gt;</span> dotnet build C:\src\RecoApi\RECO.API.sln -c Debug
+
+<span class="c"># 2) each module (its own .sln, or the whole modules folder)</span>
+<span class="p">PS&gt;</span> dotnet build C:\src\RecoApiModules\Subscribers\RECO.Subscriber\RECO.Subscriber.sln -c Debug</pre>
+<p>The <code>-Apply</code> run already did this build once as a gate and reported GREEN/RED. Re-run manually whenever
+you change code (Steps 3 and 5). A green build here means <b>Part A is mechanically complete</b>.</p>
+
+<!-- ============================================================= -->
+<h2 id="partb">Step 5 — AutoMapper → Mapperly (Part B, manual, per subscriber)</h2>
+<p><span class="tag man">MANUAL</span> Open the <code>automapper-inventory-*.csv</code> the script wrote (in the host
+repo root). Every row is a file + line using AutoMapper. Group them by project — each project with maps needs the
+same three moves. <b>Why this can't be a blind find-replace:</b> every <code>ForMember(…Ignore())</code> encodes a
+deliberate behaviour (which audit columns and navigations must <i>not</i> be copied), and AutoMapper matched property
+names case-insensitively. Mapperly makes all of that explicit and compile-checked — which is the whole point, but it
+means a human maps intent, not text.</p>
+
+<h4>The three moves per project</h4>
+<ol class="steps">
+  <li><b>Swap the package.</b> In the project's csproj, remove <code>&lt;PackageReference Include="AutoMapper" …/&gt;</code>
+      and add <code>&lt;PackageReference Include="Riok.Mapperly" Version="4.3.1" /&gt;</code>. <b>You add this line by
+      hand</b> — the script never adds package references; its version map merely pins Mapperly to 4.3.1 wherever a
+      reference already exists.</li>
+  <li><b>Convert each <code>CreateMap</code> to a Mapperly partial method</b> in a <code>[Mapper]</code> class, turning
+      every <code>ForMember(x =&gt; x.Y, o =&gt; o.Ignore())</code> into <code>[MapperIgnoreTarget(nameof(Target.Y))]</code>
+      and every <code>ForMember(… MapFrom …)</code> rename into <code>[MapProperty(nameof(Src.A), nameof(Target.B))]</code>.</li>
+  <li><b>Point consumers at the generated methods.</b> Change the injected type from AutoMapper's
+      <code>IMapper</code> to the project's mapper seam (<code>IObjectMapper</code>); the call sites
+      (<code>_mapper.Map(src, dst)</code>) stay the same.</li>
+</ol>
+
+<h4>Worked example — a real subscriber, before → after</h4>
+<table>
+<tr>
+  <th style="width:50%">Before (AutoMapper, runtime config)</th>
+  <th>After (Mapperly, compile-time)</th>
+</tr>
+<tr>
+<td><pre style="font-size:.78rem"><code>cfg.CreateMap&lt;Reco.TblCode, Sub.TblCode&gt;()
+  .ForMember(m =&gt; m.TblCodeId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroupId,o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroup,  o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.ForeignId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.AddDate,
+             o =&gt; o.MapFrom(s =&gt; s.Created));
+// ...
+_mapperConfiguration.AssertConfigurationIsValid();</code></pre></td>
+<td><pre style="font-size:.78rem"><code>[Mapper(PropertyNameMappingStrategy =
+          PropertyNameMappingStrategy.CaseInsensitive,
+        RequiredMappingStrategy =
+          RequiredMappingStrategy.Target)]
+internal static partial class SubscriberMappings
+{
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroupId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroup))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.ForeignId))]
+  [MapProperty(nameof(Reco.TblCode.Created),
+               nameof(Sub.TblCode.AddDate))]
+  internal static partial void Copy(
+        Reco.TblCode source, Sub.TblCode target);
+}</code></pre></td>
+</tr>
+</table>
+<p class="muted">Note the two attributes on the <code>[Mapper]</code>: <code>CaseInsensitive</code> reproduces AutoMapper's
+name matching (domain <code>TblCodeID</code> vs model <code>TblCodeId</code>); <code>RequiredMappingStrategy.Target</code>
+reproduces <code>AssertConfigurationIsValid()</code> — but at <b>build time</b>, on every compile, instead of in a
+static constructor at runtime.</p>
+
+<div class="card bad">
+  <h4>The one gotcha that will bite you: clone must not alias</h4>
+  <p style="margin-bottom:.4rem">If you declare a <b>same-type</b> map (e.g. <code>TblCode Clone(TblCode s)</code>),
+  Mapperly compiles it to <code>return source;</code> — the <b>same reference</b>, not a copy. The repository snapshots
+  “old content” before updating a tracked entity; an aliased snapshot makes every old/new comparison silently equal
+  and corrupts change detection. <b>Never</b> use a Mapperly same-type map for cloning. Instead generate an in-place
+  copy and wrap it:</p>
+  <pre><code>internal static partial void CopyOnto(TblCode source, TblCode target);   // generated, correct
+// clone = new instance + CopyOnto, by hand:
+var target = new TblCode(); RecoMappings.CopyOnto(source, target); return target;</code></pre>
+</div>
+
+<div class="card tip">
+  <h4>Expect (and accept) some RMG warnings</h4>
+  <p style="margin-bottom:0">Mapperly may emit <code>RMG012</code> “unmapped member” <b>warnings</b> for nested
+  navigations it can't match (e.g. <code>AddDate</code>, <code>Db</code> on a nested nav). In the subscriber flow those
+  navigations arrive null (records come as scalars from the host API), so behaviour is unchanged — the warnings just
+  document the boundary. A hard <code>RMG</code> <b>error</b> (an unmapped <i>required</i> target) is different: add the
+  missing <code>[MapperIgnoreTarget]</code> or <code>[MapProperty]</code>. Do a subscriber, build it, read the diagnostics,
+  fix, repeat.</p>
+</div>
+
+<h4>Prove parity, don't assume it</h4>
+<p>For a subscriber whose maps you're unsure about, populate an object, run it through <i>both</i> the old AutoMapper
+config and your Mapperly version, and compare every property. The reference migration did exactly this across all
+entities and got <b>236/236 identical</b> — and that harness is what caught both the runtime crash and the clone
+gotcha. At minimum, eyeball that each old <code>ForMember(Ignore)</code> has a matching
+<code>[MapperIgnoreTarget]</code> before moving on.</p>
+
+<!-- ============================================================= -->
+<h2 id="test">Step 6 — The test ladder</h2>
+<p>Run these in order. Each rung tells you a specific thing works; if one fails, jump to
+<a href="#trouble">troubleshooting</a> before climbing higher.</p>
+
+<table>
+<tr><th>#</th><th>Test</th><th>Command / action</th><th>Expected — and what it proves</th></tr>
+<tr>
+  <td>1</td><td>Host compiles</td>
+  <td><code>dotnet build RECO.API.sln -c Debug</code></td>
+  <td><b>Build succeeded.</b> Part A + EmailSink are correct. (Ignore <code>MSB302x</code> file-locks — stop the app.)</td>
+</tr>
+<tr>
+  <td>2</td><td>Every module compiles &amp; deploys</td>
+  <td>build each module .sln</td>
+  <td>Green, and DLLs appear under the host's <code>Modules\…\&lt;Name&gt;</code>. Proves HintPaths + versions line up.</td>
+</tr>
+<tr>
+  <td>3</td><td>No AutoMapper left</td>
+  <td>re-run the script (dry-run) or grep the tree for <code>AutoMapper</code></td>
+  <td>Inventory reports <b>0 references</b>. Proves Part B is complete.</td>
+</tr>
+<tr>
+  <td>4</td><td>Unit tests</td>
+  <td><code>dotnet test</code> on the test project(s)</td>
+  <td>Compile &amp; run. NUnit 3→4 asserts still work. (Integration tests needing SQL will fail <i>only</i> for lack of DB —
+      not a regression; see below.)</td>
+</tr>
+<tr>
+  <td>5</td><td>Service starts &amp; loads modules <span class="tag">DB</span></td>
+  <td><code>dotnet run --project src\Service\RECO.API.Service</code></td>
+  <td>Starts without the AutoMapper crash; log shows each module loaded; Swagger UI answers; the MSSqlServer log table
+      is created. Proves the plugin path + mapping + Serilog stack on .NET 10.</td>
+</tr>
+<tr>
+  <td>6</td><td>One end-to-end flow per module <span class="tag">DB</span></td>
+  <td>trigger a subscriber pull → mapping → persist</td>
+  <td>Data lands in SQL with correct values (esp. renamed columns like <code>AddDate</code>). Proves Mapperly parity for real.</td>
+</tr>
+<tr>
+  <td>7</td><td>Error email <span class="tag">DB</span></td>
+  <td>force a failing subscriber</td>
+  <td>An email is sent via the rewritten sink. This is the one config-shape change worth an explicit test.</td>
+</tr>
+<tr>
+  <td>8</td><td>Persistent-queue tests <span class="tag">DB</span></td>
+  <td><code>dotnet test</code> (queue tests)</td>
+  <td>Green against the dev DB. Proves EF Core 6→10 query behaviour on the queue.</td>
+</tr>
+</table>
+
+<div class="card ok">
+  <h4>Interpreting “2 tests failed”</h4>
+  <p style="margin-bottom:0">If the only failures are integration tests that need SQL Server and you're on a machine that
+  can't reach it, that is <b>not</b> an upgrade regression — it's an environment gap. Re-run them on the DB-connected box
+  (rung 8). Confirm the failure message is a connection/login error, not an assertion or type error.</p>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="trouble">Error navigation — troubleshooting</h2>
+<p>Find your symptom. The <b>Class</b> column tells you <i>when</i> it appears: <span class="tag">BUILD</span> at compile,
+<span class="tag bad">RUN</span> only at runtime.</p>
+
+<h3>Build-time</h3>
+<table>
+<tr><th>Symptom</th><th>Class</th><th>Cause &amp; fix</th></tr>
+<tr>
+  <td><code>MSB3021</code> / <code>MSB3027</code>: cannot copy/write <code>RECO.API.*.dll</code>, file in use</td>
+  <td><span class="tag">BUILD</span></td>
+  <td><b>Not a real error.</b> The host is running and holding the DLL. Stop it
+      (<code>taskkill /F /IM RECO.API.Service.exe</code>) and rebuild.</td>
+</tr>
+<tr>
+  <td><code>CS0246</code>: <code>Microsoft.OpenApi.Models</code> not found</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>Swashbuckle 10 flattened the namespace. Change the <code>using</code> to <code>Microsoft.OpenApi;</code>
+      (the script does this — this only appears if a file was missed).</td>
+</tr>
+<tr>
+  <td><code>CS0246</code>: <code>EmailConnectionInfo</code> not found</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>Sinks.Email 4.x removed it. Do the <a href="#email">Step 3</a> rewrite.</td>
+</tr>
+<tr>
+  <td><code>CS0311</code>: type can't be used as generic parameter (…<code>IDataRecordWithRelationships</code>)</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>Pre-existing model <b>drift</b>, not the upgrade. Add the missing interface marker to the model, as the
+      sibling models have it (<a href="#baseline">Step 1</a>).</td>
+</tr>
+<tr>
+  <td><code>NU1102</code>/<code>NU1202</code>: package X version Y not compatible with net10.0</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>A package (often from an <b>auth layer</b>) isn't in the version map. Find its net10-compatible version on
+      nuget.org and either bump it in the csproj or add it to a <code>-ConfigFile</code> JSON and re-run.</td>
+</tr>
+<tr>
+  <td><code>NU1605</code>: detected package downgrade</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>A module pins a shared package <i>lower</i> than the host (or vice-versa). Make them equal — that's the
+      same-process rule. Align to the version map value.</td>
+</tr>
+<tr>
+  <td><code>MSB3245</code> / <code>CS0246</code> on a host type inside a <b>module</b>; “reference could not be resolved”</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>Either the host wasn't built first, or a stale <code>bin\Debug\net6.0</code> HintPath is still pointing at a
+      deleted folder. Confirm the HintPath uses <code>$(Configuration)\$(TargetFramework)</code> and rebuild the host,
+      then the module. <code>dotnet clean</code> if a stale net6 <code>bin</code> lingers.</td>
+</tr>
+<tr>
+  <td><code>NU1903</code>: known high-severity vulnerability in AutoMapper</td>
+  <td><span class="tag">BUILD</span> (warning)</td>
+  <td>Expected until Part B removes AutoMapper. It's a signal, not a blocker.</td>
+</tr>
+<tr>
+  <td><code>RMG</code>… Mapperly <b>error</b>: target member not mapped</td>
+  <td><span class="tag">BUILD</span></td>
+  <td>A required destination property has no source and no ignore. Add <code>[MapperIgnoreTarget(nameof(...))]</code>
+      (if it should stay unset — e.g. audit/nav columns) or <code>[MapProperty(...)]</code> (if it's a rename).</td>
+</tr>
+<tr>
+  <td><code>RMG012</code> <b>warning</b>: unmapped member on a nested navigation</td>
+  <td><span class="tag">BUILD</span> (warning)</td>
+  <td>Usually fine — the nav is null in the subscriber flow. Verify that's true for your case, then leave it; it
+      documents the boundary (<a href="#partb">Step 5</a>).</td>
+</tr>
+</table>
+
+<h3>Run-time</h3>
+<table>
+<tr><th>Symptom</th><th>Class</th><th>Cause &amp; fix</th></tr>
+<tr>
+  <td><code>TypeInitializationException</code> → <code>VerificationException: …MaxInteger… violates the constraint</code>,
+      thrown when a mapper is first used</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>The AutoMapper-on-.NET-10 crash. There is no config tweak — <b>you must finish Part B</b>
+      (<a href="#partb">Step 5</a>). Green build, dead runtime = this.</td>
+</tr>
+<tr>
+  <td>SQL connect fails: <code>A connection was successfully established… certificate chain… SSL</code> /
+      <code>The certificate chain was issued by an authority that is not trusted</code></td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>SqlClient encrypts by default since .NET 7. The connection string needs
+      <code>TrustServerCertificate=True</code> (the script adds it). Remove it only if the server has a CA-trusted cert.</td>
+</tr>
+<tr>
+  <td><code>ArgumentException</code>/<code>NotSupportedException</code> from <code>Assembly.LoadFile</code>: “absolute path
+      required”, or no modules load</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>appsettings has a <b>relative</b> module path but the loader wasn't updated. Ensure
+      <code>ModuleProviderLoader</code> does <code>Path.GetFullPath(path, AppContext.BaseDirectory)</code>
+      (the script's edit) and that <code>FiltersLocation</code>/<code>SubscribersLocation</code> are relative like
+      <code>Modules\Subscribers</code>.</td>
+</tr>
+<tr>
+  <td>Modules folder is empty / “no providers found” at startup</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>Modules weren't built after the host, so nothing deployed into <code>Modules\…</code>. Build each module
+      (<a href="#build">Step 4</a>). Check each module's <code>OutputPath</code> still points into the host.</td>
+</tr>
+<tr>
+  <td><code>TypeLoadException</code> / <code>MissingMethodException</code> / <code>FileLoadException: assembly version
+      mismatch</code> when a module loads</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>The <b>same-process rule</b> was broken — a module resolved a different version of EF Core / Extensions /
+      Newtonsoft than the host. Make the module's shared package versions <b>identical</b> to the host's, rebuild both.</td>
+</tr>
+<tr>
+  <td>Old/new comparison always “equal”; updates silently do nothing after Part B</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>The Mapperly <b>identity-clone</b> gotcha — a same-type map returned the same reference. Replace it with
+      <code>new T()</code> + generated <code>CopyOnto</code> (<a href="#partb">Step 5</a> red box).</td>
+</tr>
+<tr>
+  <td>Error email never arrives; no crash</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>EmailSink 4.x mapping. Check <code>ConnectionSecurity</code> matches your server (port 25 → <code>None</code>;
+      SSL/TLS port → <code>Auto</code>) and that credentials are set when <code>UseDefaultCredentials=false</code>.</td>
+</tr>
+<tr>
+  <td>Startup fails binding the email sink: “unknown method EmailSink” / settings not applied</td>
+  <td><span class="tag bad">RUN</span></td>
+  <td>The extension-method name or a settings property name changed during the rewrite. Keep them <b>identical</b> to
+      the .NET 6 version — the appsettings file binds by those names.</td>
+</tr>
+</table>
+
+<h3>Git / script</h3>
+<table>
+<tr><th>Symptom</th><th>Cause &amp; fix</th></tr>
+<tr><td>Script aborts: “Working tree not clean”</td>
+    <td>Commit or stash your changes first, or pass <code>-SkipGit</code> (you then lose the auto-branch; the
+        <code>.recobak</code> backups still work).</td></tr>
+<tr><td>“running scripts is disabled on this system”</td>
+    <td>Launch via <code>powershell -ExecutionPolicy Bypass -File .\Migrate-RecoApi.ps1 …</code>.</td></tr>
+<tr><td>Branch <code>net10-upgrade</code> already exists</td>
+    <td>The script checks it out and continues. If you want a fresh start, delete it first
+        (<code>git branch -D net10-upgrade</code>) or pass a different <code>-BranchName</code>.</td></tr>
+<tr><td>You applied, something's wrong, you want the files back</td>
+    <td>Run with <code>-Rollback</code> — it restores every <code>.recobak</code>. See <a href="#rollback">below</a>.</td></tr>
+<tr><td>A project you expected wasn't touched</td>
+    <td>It's probably under <code>bin\</code>/<code>obj\</code> (skipped) or already on net10. Confirm with a dry run.</td></tr>
+</table>
+
+<!-- ============================================================= -->
+<h2 id="rollback">Rollback &amp; safety net</h2>
+<p>You have two independent undo levels — use whichever is handier:</p>
+<ol class="steps">
+  <li><b>Script backups.</b> Every <code>-Apply</code> run copies each file to <code>&lt;file&gt;.recobak</code> before
+      editing. To undo the last apply:
+      <pre class="shell"><span class="p">PS&gt;</span> .\Migrate-RecoApi.ps1 -HostRepo C:\src\RecoApi -ModulesRepo C:\src\RecoApiModules -Rollback</pre>
+      It restores every backup and deletes the <code>.recobak</code> files. (Any git branch it created is left in place —
+      delete it by hand if you want.)</li>
+  <li><b>Git.</b> Because the script works on the <code>net10-upgrade</code> branch, you can always
+      <code>git checkout .</code> to discard working changes, or <code>git checkout main</code> and
+      <code>git branch -D net10-upgrade</code> to throw the whole attempt away. Nothing is pushed until you push it.</li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="finish">Finish &amp; merge checklist</h2>
+<ul class="chk">
+  <li>Host builds green on net10; all modules build green and deploy into <code>Modules\</code>.</li>
+  <li>EmailSink rewritten; no <code>EmailConnectionInfo</code> left.</li>
+  <li>Inventory shows <b>0</b> AutoMapper references; Mapperly builds with no <code>RMG</code> <i>errors</i>.</li>
+  <li>Clone/copy semantics verified (no identity-alias); mapping parity spot-checked.</li>
+  <li>Service starts, loads every module, Swagger answers <span class="tag">DB</span>.</li>
+  <li>One end-to-end flow per module passes; error email fires; queue tests green <span class="tag">DB</span>.</li>
+  <li>Before committing, delete the script's working artifacts so they don't land in history: every
+      <code>*.recobak</code> backup (only once you're sure you won't roll back), plus the
+      <code>migrate-recoapi-*.log</code> and <code>automapper-inventory-*.csv</code> files in the host repo root.</li>
+  <li>Commit Part A and Part B as <b>separate</b> commits/branches so regressions stay attributable.
+      <b>Merge order: net10 retarget first, then the Mapperly change.</b></li>
+  <li>Update your team's connection strings on each environment (they now carry
+      <code>TrustServerCertificate=True</code> — keep it unless the server has a trusted cert).</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="appendix">Appendix</h2>
+
+<h3>A. Package version matrix (the “after” the script targets)</h3>
+<table>
+<tr><th>Package(s)</th><th>.NET 6 era</th><th>.NET 10</th></tr>
+<tr><td>Microsoft.EntityFrameworkCore(.Design/.SqlServer)</td><td>6.0.5–6.0.7</td><td class="num">10.0.9</td></tr>
+<tr><td>Microsoft.Extensions.* (Configuration, Logging, Options, DI, …)</td><td>6.0.x</td><td class="num">10.0.9</td></tr>
+<tr><td>Serilog</td><td>2.11.0</td><td class="num">4.3.1</td></tr>
+<tr><td>Serilog.AspNetCore / Extensions.Hosting / Extensions.Logging</td><td>6.0.1 / 5.0.1 / 3.1.0</td><td class="num">10.0.0</td></tr>
+<tr><td>Serilog.Settings.Configuration</td><td>3.3.0</td><td class="num">10.0.1</td></tr>
+<tr><td>Serilog.Expressions</td><td>3.4.0</td><td class="num">5.0.0</td></tr>
+<tr><td>Serilog.Sinks.Console / File / MSSqlServer / Email</td><td>4.0.1 / 5.0.0 / 5.7.1 / 2.4.0</td><td class="num">6.1.1 / 7.0.0 / 10.0.0 / 4.2.1</td></tr>
+<tr><td>Swashbuckle.AspNetCore</td><td>6.4.0</td><td class="num">10.2.3</td></tr>
+<tr><td>NUnit / NUnit3TestAdapter / Microsoft.NET.Test.Sdk / Moq</td><td>3.13.3 / 4.2.1 / 17.2.0 / 4.18.1</td><td class="num">4.6.1 / 6.2.0 / 18.7.0 / 4.20.72</td></tr>
+<tr><td>Newtonsoft.Json</td><td>13.0.1</td><td class="num">13.0.4</td></tr>
+<tr><td>AutoMapper</td><td>11.0.1</td><td><b>removed</b> → Riok.Mapperly <span class="num">4.3.1</span></td></tr>
+</table>
+<p class="muted">Override any of these without editing the script: put a JSON like
+<code>{ "Swashbuckle.AspNetCore": "10.3.0" }</code> in a file and pass <code>-ConfigFile that.json</code>.</p>
+
+<h3>B. Script parameter reference</h3>
+<table>
+<tr><th>Parameter</th><th>Meaning</th></tr>
+<tr><td><code>-HostRepo &lt;path&gt;</code></td><td><b>Required.</b> The RecoApi host repo (contains the .sln).</td></tr>
+<tr><td><code>-ModulesRepo &lt;path&gt;</code></td><td>The modules repo. Omit if modules live inside the host repo.</td></tr>
+<tr><td><code>-Apply</code></td><td>Actually write. <b>Without it, dry-run</b> (writes nothing).</td></tr>
+<tr><td><code>-FromTfm / -ToTfm</code></td><td>Framework monikers. Default <code>net6.0</code> → <code>net10.0</code>.</td></tr>
+<tr><td><code>-Configuration</code></td><td>Build config for the gate. Default <code>Debug</code>.</td></tr>
+<tr><td><code>-BranchName</code></td><td>Branch to create/checkout. Default <code>net10-upgrade</code>.</td></tr>
+<tr><td><code>-ConfigFile &lt;path&gt;</code></td><td>JSON overriding the version map.</td></tr>
+<tr><td><code>-SkipGit</code></td><td>No branch, no clean-tree check (backups still made).</td></tr>
+<tr><td><code>-NoBuild</code></td><td>Skip the post-migration build gate.</td></tr>
+<tr><td><code>-Rollback</code></td><td>Restore all <code>.recobak</code> backups, then exit.</td></tr>
+</table>
+<p class="muted">Exit codes: <code>0</code> success · <code>1</code> completed with build/errors · <code>2</code> preflight
+failed (nothing changed) · <code>3</code> unhandled abort.</p>
+
+<h3>C. What the script is <u>not</u> allowed to decide for you</h3>
+<p>By design it never: rewrites the EmailSink, converts AutoMapper maps, fixes model drift, pushes to a remote, or
+edits anything under <code>bin\</code>/<code>obj\</code>. Those either need human judgement or aren't source. Everything
+it <i>does</i> touch is backed up and reversible.</p>
+
+<hr>
+<p class="muted">Runbook companion to the executed migration report (<code>net10-migration-report.html</code>). The
+mechanical transforms in <code>Migrate-RecoApi.ps1</code> were validated by reproducing the reference migration from a
+clean .NET 6 checkout and diffing byte-for-byte against the known-good result: modules identical, host identical apart
+from two comment lines and one extra (beneficial) hardened connection string. Part B remains a human task by design.</p>
+
+</main>
+</body>
+</html>
