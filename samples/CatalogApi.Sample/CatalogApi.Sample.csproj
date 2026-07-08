@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Show the generated mapper files on disk so readers can inspect them. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- In a real project these are two NuGet packages:
+           <PackageReference Include="Mapwright" Version="0.1.0" />
+           <PackageReference Include="Mapwright.Generator" Version="0.1.0" PrivateAssets="all" />
+         Here we reference the source projects so the sample builds inside the repo. -->
+    <ProjectReference Include="..\..\src\Mapwright\Mapwright.csproj" />
+    <ProjectReference Include="..\..\src\Mapwright.Generator\Mapwright.Generator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

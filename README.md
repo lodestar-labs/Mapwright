@@ -112,11 +112,19 @@ dotnet_diagnostic.MW0001.severity = error
 
 ## Replacing AutoMapper
 
+**[docs/automapper-vs-mapwright.html](docs/automapper-vs-mapwright.html)** — the side-by-side
+migration reference: why AutoMapper exists, the issues it leaves open, how Mapwright closes each
+with modern C#, a statement-by-statement replacement guide, and a **runnable sample app whose real
+output is printed in the doc** (`samples/CatalogApi.Sample` — `dotnet run --project samples/CatalogApi.Sample`).
+
 **[docs/replacing-automapper.html](docs/replacing-automapper.html)** is the full
 walkthrough, built on a real production case study: a catalog API whose AutoMapper
 `MapperFactory` (entity↔domain maps, self-maps for tracked updates, `ForMember(...Ignore())`
 lists) became three Mapwright declarations per entity — with the runtime
 `AssertConfigurationIsValid()` test replaced by the compiler.
+
+**[docs/automapper-and-mapwright-explained.html](docs/automapper-and-mapwright-explained.html)** —
+a from-zero explanation of what AutoMapper is and how source-generated mapping replaces it.
 
 ## Honest limitations (v0.1)
 
