@@ -1,240 +1,246 @@
 ==============================================================================
- FULL APPLICATION MIGRATION PLAN: .NET 6  ->  .NET 10
- Host web service + all plugin modules (subscribers and filters)
+ FULL APP MIGRATION PLAN: .NET 6 TO .NET 10
 ==============================================================================
 
-FORMAT OF EACH TASK
--------------------
-  TASK      - what to do
-  WHY       - the .NET 10 upgrade issue that makes this task necessary
-  HOW       - how to solve it
-  TIME      - human developer time, always a range, per component
+WHAT THIS IS
+------------
+A plan to move the whole app from .NET 6 to .NET 10.
+
+The app is one host plus plugin modules. Modules are of two kinds: filters and
+subscribers.
+
+The host loads each module into its own process. The host and the modules run
+together in one process. They share the same libraries. So:
+  - Host and modules must use the same library versions.
+  - Host and modules must all move to .NET 10 together.
+  - They deploy as one unit.
+
+ORDER OF WORK
+-------------
+  1. Do the host first.
+  2. Then do the filters and subscribers.
+  3. Deploy the host and all modules together, in one restart.
+
+Reason: the modules are built against the host and run inside it. They cannot
+go before the host. They cannot lag behind it. A module left on the old
+version will load and then crash the running app.
+
+TWO KINDS OF WORK
+-----------------
+  A. Change the target to .NET 10 and update the libraries.
+  B. Fix AutoMapper. AutoMapper breaks on .NET 10. See the AutoMapper section.
 
 TIME NOTES
-  * "per project" / "per module" tasks give the range for ONE component;
-    multiply by how many you have.
-  * FIXED tasks are done once for the whole app.
-  * Times are for one developer who has done the step once before; the first
-    of any repeated component takes the top of the range or more.
-
-READ FIRST - the two rules that shape the plan
-  1. The host loads every module into one process, so host and modules must
-     use the SAME shared-library versions and all move to .NET 10 together.
-  2. Do the host first; modules are rebuilt against the migrated host.
+----------
+  - Times are a range.
+  - "per module" tasks give the time for one module. Multiply by how many you
+    have.
+  - The local version has few modules. The real app may have many. See the
+    section "MORE FILTERS AND SUBSCRIBERS" for the added time per extra module.
 
 
 ==============================================================================
- PHASE 0 - PREPARATION AND DECISIONS
+ HOST TASKS (do these first)
 ==============================================================================
 
-TASK 1 - Install .NET 10 SDK and record a clean .NET 6 baseline build.
-  WHY:  You need the .NET 10 SDK to build, and a known-green starting point so
-        that later you can tell upgrade errors apart from problems that were
-        already there.
-  HOW:  Install the .NET 10 SDK. Build the host solution and every module on
-        .NET 6 and confirm they are green. Save that state.
-  TIME: 0.5 - 1 day (fixed).
+TASK 1 - Get a clean build first.
+  WHY:  You need a working start point. If the app is already broken, you
+        cannot tell old errors from new ones. Some modules may already fail to
+        build against the host (a host model can be missing an interface).
+  HOW:  Install the .NET 10 SDK. Build the host and all modules on .NET 6. Fix
+        anything already broken. Get everything green.
+  TIME: 0.5 to 1 day.
 
-TASK 2 - Repair any pre-existing breakage (drift) before upgrading.
-  WHY:  Before the upgrade, some modules did not even build against the host
-        (a host model had lost a marker interface). Upgrading on top of that
-        mixes old errors with new ones and makes diagnosis very hard.
-  HOW:  Fix each broken reference the same way its siblings are written (e.g.
-        add the missing interface to the host model). Confirm the whole
-        solution builds on .NET 6, as a separate change.
-  TIME: 0.5 - 2 hours per broken component (typically 0.25 - 0.5 day total).
+TASK 2 - Change host projects to .NET 10.
+  WHY:  .NET 6 is old and not supported. The app must run on .NET 10.
+  HOW:  In each host project file, change net6.0 to net10.0. About 11 projects.
+  TIME: 0.25 to 0.5 day.
 
-TASK 3 - Decide the data-mapping strategy: upgrade AutoMapper OR replace it.
-  WHY:  The pinned AutoMapper 11.0.1 builds but CRASHES the first time it runs
-        on .NET 10, so it cannot stay as-is. You must at least upgrade it. The
-        choice shapes several later tasks, so decide now.
-  HOW:  Weigh two options.
-        OPTION A - Upgrade AutoMapper. AutoMapper v16 officially supports
-          .NET 10. Note licensing: AutoMapper went commercial (July 2025);
-          v15+ is dual-licensed (RPL-1.5 / commercial) with a FREE community
-          tier for organisations under ~$5M revenue and for non-profits, which
-          a public/research body likely qualifies for. (A pre-v15 MIT version
-          may run on .NET 10 but is not officially supported for it.)
-          Constraint: host and every module must use the SAME AutoMapper
-          version (same-process rule).
-        OPTION B - Replace AutoMapper with Mapperly (compile-time, Apache-2.0).
-          No licence question, compile-time checked, and it removes the
-          cross-module version-matching constraint (no mapper DLL is shared).
-          Higher one-time effort.
-        Recommendation: Option B for a plugin architecture (cleaner long term);
-        Option A if speed matters most and you qualify for the free tier.
-  TIME: 0.25 - 0.5 day (evaluation and sign-off, fixed).
+TASK 3 - Update host NuGet packages.
+  WHY:  The packages are many versions old. Old versions do not work on
+        .NET 10. Packages: Entity Framework, Microsoft.Extensions, Serilog,
+        Swagger, test packages, JSON.
+  HOW:  Set each package to a .NET 10 version. Write these versions down. The
+        modules must use the same ones later.
+  TIME: 0.5 to 1 day.
 
+TASK 4 - Fix the email log sink.
+  WHY:  The new Serilog email sink removed the old type it used. This is the
+        only build error in the host.
+  HOW:  Rewrite the two email-sink files to use the new options type. Keep the
+        setting names in appsettings the same, so no config files change.
+  TIME: 2 to 4 hours.
 
-==============================================================================
- PHASE 1 - HOST: RETARGET, LIBRARIES, CONFIG, CODE FIXES
-==============================================================================
+TASK 5 - Fix the Swagger using line.
+  WHY:  The new Swagger moved a namespace. One "using" line no longer works.
+  HOW:  Change "using Microsoft.OpenApi.Models;" to "using Microsoft.OpenApi;".
+  TIME: 5 to 15 minutes.
 
-TASK 4 - Retarget all host projects to .NET 10.
-  WHY:  .NET 6 is out of support and the app must run on the .NET 10 runtime.
-  HOW:  Change the target framework from net6.0 to net10.0 in each host project
-        file (about 11 projects).
-  TIME: 2 - 5 minutes per project (about 0.25 - 0.5 day for the ~11 host
-        projects).
+TASK 6 - Fix the SQL connection strings.
+  WHY:  The new SQL client encrypts connections by default. A dev SQL Server
+        with no trusted certificate is refused. This fails at run time, not at
+        build time.
+  HOW:  Add "TrustServerCertificate=True" to each connection string.
+  TIME: 5 to 15 minutes.
 
-TASK 5 - Update the host's NuGet packages to .NET 10-compatible versions.
-  WHY:  The packages are several major versions behind (Entity Framework 6->10,
-        Microsoft.Extensions 6->10, the Serilog stack, Swagger/Swashbuckle, the
-        test packages, JSON). The old versions do not work on .NET 10.
-  HOW:  Update every PackageReference across the host projects. Keep versions
-        consistent, because the modules must match them later.
-  TIME: 0.5 - 1 day (fixed, including resolving the fallout in tasks 6-8).
+TASK 7 - Fix the module folder paths.
+  WHY:  The module folder paths are absolute and from the old dev machine. The
+        module loader does not accept relative paths.
+  HOW:  Put relative paths in appsettings. In the loader, turn them into full
+        paths using the app base directory before loading.
+  TIME: 15 to 30 minutes.
 
-TASK 6 - Rewrite the custom Serilog email log sink.
-  WHY:  The new Serilog email sink removed the old connection-info type (it
-        moved to a different mail library). This is the ONLY compile error in
-        the whole host.
-  HOW:  Rewrite the two email-sink files against the new options type (map SSL
-        on/off, subject, credentials) and register it. Keep the setting names
-        in appsettings identical, so no config files change.
-  TIME: 2 - 4 hours (fixed).
-
-TASK 7 - Fix the renamed OpenApi/Swagger namespace.
-  WHY:  The new Swashbuckle uses a reorganised OpenApi library, so one "using"
-        line no longer resolves.
-  HOW:  Change "using Microsoft.OpenApi.Models;" to "using Microsoft.OpenApi;"
-        in Startup.
-  TIME: 5 - 15 minutes (fixed).
-
-TASK 8 - Harden the SQL connection strings for the new encryption default.
-  WHY:  The newer SQL client encrypts connections by default, so a dev SQL
-        Server without a trusted certificate is refused - and this only shows
-        at the first database call, not at build time.
-  HOW:  Add "TrustServerCertificate=True" to each connection string in
-        appsettings (including any log-sink connection string). Remove later if
-        the server gets a CA-trusted certificate.
-  TIME: 5 - 15 minutes (fixed).
-
-TASK 9 - Make the module folder paths environment-independent.
-  WHY:  The module folders were set to an absolute path from the original dev
-        machine, and the plugin loader rejects relative paths - so you cannot
-        simply make the path relative.
-  HOW:  Put relative paths in appsettings, and in the module loader resolve
-        them to an absolute path against the app's base directory before
-        loading.
-  TIME: 15 - 30 minutes (fixed).
+TASK 8 - Fix AutoMapper in the host.
+  WHY:  AutoMapper 11 builds but crashes the first time it maps on .NET 10.
+  HOW:  Upgrade AutoMapper, or replace it with Mapperly. See the AutoMapper
+        section for both options.
+  TIME: Upgrade: 2 to 4 hours. Replace: 1.5 to 2.5 days.
 
 
 ==============================================================================
- PHASE 2 - HOST: DATA MAPPING (do the option chosen in Task 3)
+ MODULE TASKS (do after the host builds; for each filter and subscriber)
 ==============================================================================
 
-TASK 10 - Resolve the host's AutoMapper problem.
-  WHY:  AutoMapper 11.0.1 crashes at runtime on .NET 10; it also carries a
-        security advisory. The host has its own set of mappings that must be
-        fixed regardless of the modules.
-  HOW - OPTION A (upgrade): Bump AutoMapper to a .NET 10-compatible version,
-        make sure the host uses the same version the modules will use, and run
-        the mapping configuration validation to confirm nothing broke.
-  HOW - OPTION B (replace): Create a small internal mapper interface and
-        registry in the shared project; convert the host's mappings (about 8
-        record types) to Mapperly - every "ignore this field" becomes an
-        attribute; watch the clone trap (a same-type copy returns the SAME
-        object, not a copy - use "new object, then copy into it"); switch the
-        mapper type in the few consumers (repository, repository factory, action
-        processor). Call sites stay the same.
-  TIME: OPTION A: 2 - 4 hours (fixed).
-        OPTION B: 1.5 - 2.5 days (fixed).
+TASK 9 - Change each module to .NET 10.
+  WHY:  A module must run on the same runtime as the host, or it will not load.
+  HOW:  In the module project file, change net6.0 to net10.0.
+  TIME: 5 to 10 minutes per module.
 
-
-==============================================================================
- PHASE 3 - MODULES (repeat per module; multiply by fleet size)
-==============================================================================
-
-TASK 11 - Retarget each module to .NET 10.
-  WHY:  A module must run on the same runtime as the host or it will not load.
-  HOW:  Change the target framework from net6.0 to net10.0 in the module
-        project file.
-  TIME: 5 - 10 minutes per module.
-
-TASK 12 - Align each module's shared package versions to the host.
-  WHY:  Host and module share one process; any mismatch in a shared library
-        (Entity Framework, logging, JSON, and AutoMapper if kept) makes the
-        module load and then crash with type errors.
-  HOW:  Set each shared package in the module to the exact version the host now
+TASK 10 - Match each module's package versions to the host.
+  WHY:  Host and module share one process. Different versions of a shared
+        library make the module load and then crash.
+  HOW:  Set each shared package in the module to the same version the host now
         uses.
-  TIME: 10 - 20 minutes per module.
+  TIME: 10 to 20 minutes per module.
 
-TASK 13 - Make each module's host-DLL reference paths framework-neutral.
-  WHY:  The reference paths have the framework folder baked in (...\net6.0\...),
-        so after retargeting the module would silently keep pointing at last
-        year's .NET 6 host build.
-  HOW:  Replace the "net6.0" part of each host-DLL reference path with the build
-        variables $(Configuration)\$(TargetFramework).
-  TIME: 5 - 15 minutes per module.
+TASK 11 - Fix each module's reference paths to the host DLLs.
+  WHY:  The reference paths have net6.0 fixed in them. After the change they
+        would point at the old .NET 6 host build.
+  HOW:  Replace net6.0 in each path with $(Configuration)\$(TargetFramework).
+  TIME: 5 to 15 minutes per module.
 
-TASK 14 - Convert each subscriber's data mapping (Option B only).
-  WHY:  Subscribers use AutoMapper to copy incoming data onto database records,
-        which crashes on .NET 10. (Filters normally have no mapping.)
-  HOW:  For each subscriber: create a Mapperly mapper class, turn every "ignore
-        this field" rule into an attribute and every rename into a mapping
-        attribute, register the generated copy methods, swap the mapper type
-        (IMapper to IObjectMapper), and watch the clone trap. Delete the old
-        AutoMapper configuration.
-  TIME: OPTION B: 0.5 - 2 hours per subscriber (the FIRST subscriber 0.5 - 1
-        day to set the pattern); filters usually 0.
-        OPTION A: 0 (covered by the version bump in Task 12).
+TASK 12 - Fix AutoMapper in each subscriber.
+  WHY:  Subscribers use AutoMapper. Filters usually do not.
+  HOW:  If upgrading AutoMapper: nothing extra here; the version bump in Task 10
+        covers it. If replacing with Mapperly: convert the subscriber's maps to
+        Mapperly. See the AutoMapper section.
+  TIME: Replace: 0.5 to 2 hours per subscriber; first one about 1 day; filters
+        0. Upgrade: 0.
 
 
 ==============================================================================
- PHASE 4 - BUILD, DEPLOY, AND VERIFY
+ BUILD, TEST, DEPLOY
 ==============================================================================
 
-TASK 15 - Build host then modules and confirm the deploy-into-host chain.
-  WHY:  Modules reference the host's DLLs, so the host must build first; and a
-        green build does not prove a module actually loads.
-  HOW:  Build the host solution, then build each module. Confirm each module's
-        files land in the host's Modules folder.
-  TIME: 0.25 - 0.5 day for the host + 5 - 15 minutes per module.
+TASK 13 - Build the host, then the modules.
+  WHY:  Modules use host DLLs, so the host must build first. A build that
+        passes does not prove a module loads.
+  HOW:  Build the host. Then build each module. Check each module's files land
+        in the host's Modules folder.
+  TIME: 0.25 to 0.5 day, plus 5 to 15 minutes per module.
 
-TASK 16 - Verify at runtime against the dev SQL Server.
-  WHY:  The AutoMapper crash, the encryption failure, and module loading only
-        appear at runtime, and the service opens the database at startup - so
-        it cannot be fully verified without the dev database. (Also confirm the
-        unit tests, whose NUnit framework had a major-version bump.)
-  HOW:  On a database-connected machine, start the service; confirm Swagger
-        answers, all modules load, one end-to-end flow per module works, an
-        error email is sent, and the queue and unit tests pass.
-  TIME: 1 - 2 days for the app + 15 - 30 minutes per module for its own flow.
+TASK 14 - Test on a machine with the dev database.
+  WHY:  The AutoMapper crash, the SQL encryption failure, and module loading
+        only show at run time. The app opens the database at start.
+  HOW:  Start the app. Check it starts, all modules load, one flow per module
+        works, an error email is sent, and the tests pass.
+  TIME: 1 to 2 days, plus 15 to 30 minutes per module.
+
+TASK 15 - Deploy all together.
+  WHY:  Host and modules run as one unit. A module left on the old version
+        crashes the running app.
+  HOW:  Deploy the host and all modules at the same time. One restart. Keep the
+        old version ready to roll back.
+  TIME: 0.5 to 1 day.
 
 
 ==============================================================================
- PHASE 5 - CUTOVER
+ MORE FILTERS AND SUBSCRIBERS (added time per extra module)
 ==============================================================================
+The local version has few modules. The real app may have many. Each extra
+module adds fixed time. The mechanical steps are the same. Only subscribers
+add mapping work.
 
-TASK 17 - Sequence, deploy, and keep a rollback path.
-  WHY:  Because host and modules share one process, a single module left on the
-        old build crashes the running service - so everything must switch
-        together, in a controlled order.
-  HOW:  Merge in two attributable steps (first the retarget/library update, then
-        the mapping change). Deploy the host and ALL modules together in one
-        restart window. Keep the previous host+modules set ready as a rollback.
-  TIME: 0.5 - 1 day (fixed).
+ONE EXTRA FILTER:
+  - Change to .NET 10 (Task 9):        5 to 10 min
+  - Match packages (Task 10):          10 to 20 min
+  - Fix reference paths (Task 11):     5 to 15 min
+  - AutoMapper:                        0 (filters have none)
+  - Build and deploy check (Task 13):  5 to 15 min
+  - Test one flow (Task 14):           15 to 30 min
+  TOTAL PER EXTRA FILTER:              about 40 to 90 minutes.
+
+ONE EXTRA SUBSCRIBER:
+  - Mechanical steps (Tasks 9 to 11):  20 to 45 min
+  - AutoMapper (Task 12):
+       Replace path:                   0.5 to 2 hours (first one about 1 day)
+       Upgrade path:                   0
+  - Build and deploy check (Task 13):  5 to 15 min
+  - Test one flow (Task 14):           15 to 30 min
+  TOTAL PER EXTRA SUBSCRIBER:
+       Replace path:                   about 1.5 to 3.5 hours (after the first)
+       Upgrade path:                   about 40 to 90 minutes
+
+NOTE: module work runs in parallel. Many developers can do many modules at the
+same time. The host work and the single deploy do not run in parallel.
+
+
+==============================================================================
+ THE AUTOMAPPER ISSUE (two options)
+==============================================================================
+AutoMapper copies data from one object to another. The app uses AutoMapper 11.
+
+The problem: AutoMapper 11 builds fine on .NET 10 but CRASHES the first time it
+maps. This is a hard block. You must do one of two things.
+
+
+OPTION 1 - UPGRADE AUTOMAPPER
+  What: move AutoMapper to a version that works on .NET 10 (version 16).
+  Good:
+    - Fast. Small change. A version bump and a test.
+    - The code stays almost the same.
+  Watch out:
+    - License. AutoMapper became a paid product in July 2025. Version 15 and up
+      need a commercial license. There is a free tier for small companies
+      (under about 5 million dollars revenue) and for non-profits. Check if you
+      qualify.
+    - Host and every module must use the same AutoMapper version.
+  Time: 2 to 4 hours for the host. Modules covered by the version bump.
+
+
+OPTION 2 - REPLACE WITH MAPPERLY
+  What: remove AutoMapper. Use Mapperly. Mapperly writes the copy code at build
+        time.
+  Good:
+    - Free. Apache license. No license question.
+    - Errors show at build time, not at run time.
+    - No shared mapper library. Host and modules no longer need the same mapper
+      version. This is good for a plugin app.
+  Watch out:
+    - More work up front. You convert each map by hand.
+    - The clone problem: a same-type copy returns the SAME object, not a new
+      copy. This breaks "old value" checks. Fix: make a new object, then copy
+      the values into it.
+  Time: 1.5 to 2.5 days for the host. 0.5 to 2 hours per subscriber. First
+        subscriber about 1 day.
+
+
+WHICH TO PICK
+  - Want it fast, and you qualify for the free tier: upgrade (Option 1).
+  - Want no license question and a cleaner plugin app: replace (Option 2).
 
 
 ==============================================================================
  ROUGH TOTALS
 ==============================================================================
+HOST (fixed, one developer):
+  - Option 1 (upgrade AutoMapper):   about 3 to 5 days
+  - Option 2 (replace with Mapperly): about 5 to 8 days
+  - Test on the dev database:        1 to 2 days
 
-  FIXED (host + preparation + cutover), for one developer:
-    Option A (upgrade AutoMapper):  about 3 - 5 days of work
-    Option B (replace with Mapperly): about 5 - 8 days of work
-    Plus runtime verification:       1 - 2 days (needs the dev database)
+PER EXTRA MODULE (multiply by how many you have):
+  - Extra filter:                    40 to 90 minutes
+  - Extra subscriber (replace path): 1.5 to 3.5 hours
+  - Extra subscriber (upgrade path): 40 to 90 minutes
 
-  PER MODULE (multiply by the number of modules):
-    Mechanical (tasks 11-13):        about 20 - 45 minutes each
-    Mapping (task 14, Option B):     0.5 - 2 hours per subscriber; ~0 filters
-    Per-module runtime check:        15 - 30 minutes each
-
-  The module work is parallelisable across developers; the fixed host work and
-  the single cutover window are not.
-
-------------------------------------------------------------------------------
-Full-application companion to the host and modules plain-text task lists and
-the detailed runbooks.
 ==============================================================================
