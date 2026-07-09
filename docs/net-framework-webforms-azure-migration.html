@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migrating a 20-Year-Old .NET Framework WebForms Platform to Azure</title>
+<style>
+  :root {
+    --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8;
+    --codeink:#22223a; --shell:#1b1e2b; --shellink:#e6e6ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26;
+      --code:#20202c; --codeink:#dcdce8; --shell:#0e0e16; --shellink:#e6e6ef;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1080px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.95rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.45rem; margin: 3rem 0 .7rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; scroll-margin-top: 1rem; }
+  h3 { font-size: 1.14rem; margin: 1.9rem 0 .4rem; scroll-margin-top: 1rem; }
+  h4 { font-size: 1rem; margin: 1.3rem 0 .3rem; color: var(--acc2); }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1.02rem; }
+  p, li { font-size: .96rem; }
+  a { color: var(--acc); }
+  table { border-collapse: collapse; width: 100%; margin: .9rem 0 1.3rem; font-size: .89rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .12rem .38rem; border-radius: 4px; font-size: .88em; font-family: "Cascadia Code", Consolas, monospace; }
+  pre { background: var(--code); color: var(--codeink); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .83rem; line-height: 1.5; font-family: "Cascadia Code", Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  pre.shell { background: var(--shell); color: var(--shellink); }
+  pre.shell .p { color: #6ee7a8; } pre.shell .c { color: #8b93b3; }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok   { border-left-color: var(--ok); }
+  .card.warn { border-left-color: var(--warn); }
+  .card.bad  { border-left-color: var(--bad); }
+  .card.tip  { border-left-color: var(--acc2); }
+  .card h4 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); margin-right: .35rem; vertical-align: middle; letter-spacing: .03em; }
+  .tag.ok  { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.warn{ background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .tag.info{ background: color-mix(in srgb, var(--acc2) 18%, transparent); color: var(--acc2); }
+  .muted { color: var(--mut); font-size: .88rem; }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding: .2rem 0 1rem 3rem; margin: 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: .1rem; width: 2rem; height: 2rem; background: var(--acc); color: #fff; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem; }
+  .steps > li::after { content: ""; position: absolute; left: .97rem; top: 2.3rem; bottom: -.2rem; width: 2px; background: var(--line); }
+  .steps > li:last-child::after { display: none; }
+  .toc { columns: 2; column-gap: 2rem; font-size: .92rem; padding: 1rem 1.2rem; }
+  .toc a { text-decoration: none; }
+  .toc li { margin: .2rem 0; }
+  .chk { list-style: none; padding-left: 0; }
+  .chk li { padding-left: 1.8rem; position: relative; margin: .35rem 0; }
+  .chk li::before { content: "☐"; position: absolute; left: 0; font-size: 1.1rem; color: var(--acc); }
+  .lede { font-size: 1.04rem; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+  .pill { border: 1px solid var(--line); border-radius: 20px; padding: .25rem .8rem; font-size: .82rem; background: var(--card); }
+  .verdict { font-weight: 700; }
+  .num { font-variant-numeric: tabular-nums; }
+  details { border: 1px solid var(--line); border-radius: 8px; padding: .6rem .9rem; margin: .7rem 0; background: var(--card); }
+  summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Migrating a 20-Year-Old .NET&nbsp;Framework WebForms Platform to Azure</h1>
+<p class="sub">A practical, decision-oriented guide for rehosting a large, long-lived ASP.NET WebForms
+application — mixed VB.NET and C#, LINQ&nbsp;to&nbsp;SQL, a Windows Service scheduler, in-memory workflows,
+and hundreds of cross-database dynamic SQL statements — onto Azure. Evaluates the VM path (least effort)
+against Azure App&nbsp;Service with and without serverless (FaaS) components, and proposes a phased plan.</p>
+
+<div class="card tip">
+  <h4>Read this first — the one decision that shapes everything else</h4>
+  <p style="margin-bottom:0">For this class of application the critical migration decision is <b>not</b> the web tier.
+  It is the <b>data tier</b>. The application runs hundreds of dynamic SQL statements and stored procedures whose object
+  names contain <b>three- and four-part names</b> (<code>[OtherDb].[dbo].[Table]</code>, sometimes
+  <code>[Server].[Db].[dbo].[Table]</code>) across <b>many databases</b>. Azure SQL <b>Database</b> (the single-database
+  PaaS) does <b>not support cross-database queries by three/four-part name</b> — rewriting hundreds of statements to
+  elastic-query external tables is a project in itself and a regression minefield. <b>Azure SQL Managed Instance</b>
+  supports cross-database queries, linked servers (to SQL-family targets), SQL&nbsp;Agent and Database Mail — meaning the
+  entire T-SQL estate can move <b>unchanged</b> if all databases land on the <b>same instance</b>. Choose the data tier
+  first; the web-tier choice (VM vs App Service) then becomes a much smaller, reversible decision.</p>
+</div>
+
+<h2 id="toc">Contents</h2>
+<ol class="toc">
+  <li><a href="#profile">The system profile</a></li>
+  <li><a href="#strategy">Migration strategies at a glance</a></li>
+  <li><a href="#traits">Trait-by-trait cloud impact analysis</a></li>
+  <li><a href="#data">The data tier decision (make it first)</a></li>
+  <li><a href="#optiona">Option A — Azure VM lift-and-shift</a></li>
+  <li><a href="#optionb">Option B — Azure App Service</a></li>
+  <li><a href="#faas">Option B+ — adding FaaS components</a></li>
+  <li><a href="#compare">Side-by-side comparison &amp; recommendation</a></li>
+  <li><a href="#plan">The phased migration plan</a></li>
+  <li><a href="#testing">Test ladder</a></li>
+  <li><a href="#trouble">Troubleshooting the first weeks in the cloud</a></li>
+  <li><a href="#cost">Cost orientation</a></li>
+  <li><a href="#appendix">Appendix — inventory &amp; assessment scripts</a></li>
+</ol>
+
+<!-- ================================================================ -->
+<h2 id="profile">1. The system profile</h2>
+<p class="lede">The subject is a web platform, roughly two decades old, operated by an international scientific
+organisation for the submission, aggregation and statistical estimation of field-sampling data. Its architecture is
+typical of well-built enterprise .NET applications of its era — which means it embodies, precisely, the set of
+assumptions the cloud breaks. Every migration decision below traces back to one of these traits:</p>
+
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Trait</th><th>Detail</th></tr>
+<tr><td>T1</td><td><b>Mixed-language solution</b></td><td>A set of projects, some VB.NET, some C#, targeting .NET Framework 4.7.x/4.8, compiled into one ASP.NET WebForms site plus supporting libraries.</td></tr>
+<tr><td>T2</td><td><b>LINQ to SQL data layer</b></td><td>A dedicated project holds the <code>.dbml</code> mapping; DataContexts are used throughout the code base.</td></tr>
+<tr><td>T3</td><td><b><code>HttpContext.Current</code> caching</b></td><td>Reference data and intermediate results are cached on the current HTTP context / application cache — i.e., in the memory of the single web server.</td></tr>
+<tr><td>T4</td><td><b>Windows Service scheduler</b></td><td>A separate Windows Service triggers SQL jobs (maintenance / recalculation batches) once a week.</td></tr>
+<tr><td>T5</td><td><b>Asynchronous import with DB polling</b></td><td>An import page invokes an API; the API immediately returns a numeric <i>handle</i>; a database table is polled until the handle is marked complete, and the page then resumes processing the uploaded file.</td></tr>
+<tr><td>T6</td><td><b>Long in-memory WebForms workflows</b></td><td>Multi-step wizard-style pages manipulate large data sets in server memory; some processing steps take up to <b>10 minutes</b> within a single request/postback.</td></tr>
+<tr><td>T7</td><td><b>Hundreds of dynamic SQL statements &amp; stored procedures with multi-part ("dotted") names</b></td><td>Object names such as <code>[OtherDatabase].[dbo].[Table]</code> are baked into dynamic strings and proc bodies — cross-database access is pervasive and not centralised.</td></tr>
+<tr><td>T8</td><td><b>Many databases</b></td><td>The application reads and writes several distinct databases on the same SQL Server (reference data, submissions, results, logging, staging…).</td></tr>
+</table></div>
+
+<p class="muted">Out of scope for this guide: rewriting the UI. ASP.NET WebForms has <b>no path to modern .NET</b>
+(no .NET 8/9/10 support), and VB.NET has no WebForms successor. A future modernisation (e.g., Blazor) is a separate
+programme; everything below keeps the app on .NET Framework 4.8 — which remains supported as a Windows component —
+and moves the <i>infrastructure</i> to Azure.</p>
+
+<!-- ================================================================ -->
+<h2 id="strategy">2. Migration strategies at a glance</h2>
+
+<div class="tblwrap"><table>
+<tr><th>Strategy</th><th>What it means here</th><th>Code change</th><th>Ops change</th><th>Verdict for this system</th></tr>
+<tr>
+  <td><b>Rehost</b> (lift-and-shift, IaaS)</td>
+  <td>Windows VM(s) with IIS + the Windows Service; SQL on VM or Managed Instance.</td>
+  <td>≈ none</td><td>You still patch/operate Windows</td>
+  <td class="verdict">Least effort, least cloud benefit. The safe baseline. (<a href="#optiona">Option A</a>)</td>
+</tr>
+<tr>
+  <td><b>Replatform</b> (PaaS)</td>
+  <td>App Service (Windows, .NET 4.8) + SQL Managed Instance; Windows Service becomes SQL Agent job / WebJob.</td>
+  <td>Small, targeted (state, long requests, scheduler)</td><td>Platform-managed OS, slots, autoscale-capable</td>
+  <td class="verdict">The sweet spot — <i>if</i> four platform constraints are engineered around. (<a href="#optionb">Option B</a>)</td>
+</tr>
+<tr>
+  <td><b>Replatform + FaaS</b></td>
+  <td>As above, plus Azure Functions for scheduling/orchestration and queues for decoupling.</td>
+  <td>Moderate (new, thin components — not legacy code in Functions)</td><td>Event-driven billing for the spiky parts</td>
+  <td class="verdict">Add selectively, after Option B is stable. (<a href="#faas">Option B+</a>)</td>
+</tr>
+<tr>
+  <td><b>Rearchitect / rewrite</b></td>
+  <td>New UI stack, services, modern .NET.</td>
+  <td>Massive</td><td>—</td>
+  <td class="verdict">Not a migration — a multi-year programme. Park it; don't couple it to the move.</td>
+</tr>
+</table></div>
+
+<div class="card warn">
+  <h4>Anti-pattern to avoid: migrating the app and "modernising" it in the same step</h4>
+  <p style="margin-bottom:0">With hundreds of dynamic SQL statements and a 20-year change history, the migration must be
+  <b>behaviour-preserving and diffable</b>: same inputs → same outputs, before and after. Every deliberate change you mix
+  into the move (new mapper, new session store, rewritten workflow) makes a regression impossible to attribute. Move
+  first with minimal touches; modernise afterwards on a stable cloud baseline.</p>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="traits">3. Trait-by-trait cloud impact analysis</h2>
+<p>This is the heart of the assessment: what each trait means on a VM, on App Service, and what (if anything) must
+change. Severity is from the App Service perspective — on a VM, nearly everything "just works".</p>
+
+<h3 id="t1">T1 — Mixed VB.NET + C# on .NET Framework 4.8 <span class="tag ok">LOW RISK</span></h3>
+<p>Both languages compile to the same IL; App Service (Windows) and any Windows VM run .NET Framework 4.8 natively.
+There is <b>nothing to do</b> for the migration itself. Two forward-looking notes:</p>
+<ul>
+  <li>Ensure everything targets 4.7.2+ (ideally 4.8): TLS 1.2+ then follows OS defaults — required by Azure SQL and most
+      Azure endpoints. A 4.5-era project pinned to old TLS behaviour is the classic "cannot connect after migration" cause.</li>
+  <li>Keep the solution buildable from a clean machine (NuGet restore, no GAC-only references) — you will need clean CI
+      builds for slot-based deployment later. Inventory any GAC/COM dependency now (see <a href="#appendix">appendix</a>);
+      those are the only T1 items that can genuinely block App Service.</li>
+</ul>
+
+<h3 id="t2">T2 — LINQ to SQL <span class="tag ok">LOW RISK</span></h3>
+<p>LINQ to SQL is legacy but fully functional on .NET Framework 4.8 and works unchanged against Azure SQL Managed
+Instance or SQL Server on a VM. <b>Do not convert it to EF as part of the migration</b> (see anti-pattern above).
+Practical points:</p>
+<ul>
+  <li>Connection strings move to App Service <i>configuration</i> (or Key Vault references) — App Service overrides
+      <code>web.config</code> connection strings by name at runtime, so no config-file surgery is needed.</li>
+  <li>Add <code>Encrypt=True</code>; Azure SQL endpoints use CA-signed certificates, so
+      <code>TrustServerCertificate</code> should <b>not</b> be needed (unlike self-signed on-prem instances).</li>
+  <li>Start with SQL authentication (secret in Key Vault); adopt Microsoft Entra authentication as a hardening step
+      later — <code>System.Data.SqlClient</code> on .NET Framework supports it, but don't couple it to the move.</li>
+  <li>Watch for <code>DataContext</code> instances cached beyond a request (they sometimes hide inside T3's cache) —
+      a cached DataContext holds a connection's identity map and behaves badly under recycling. Inventory, don't refactor yet.</li>
+</ul>
+
+<h3 id="t3">T3 — <code>HttpContext.Current</code> / in-memory caching <span class="tag warn">MEDIUM RISK</span></h3>
+<p>Everything cached in process memory carries three cloud assumptions: (1) there is <b>one</b> web server,
+(2) it <b>doesn't restart often</b>, (3) background code runs <b>inside a request</b> so <code>HttpContext.Current</code>
+is non-null. On App Service:</p>
+<ul>
+  <li><b>Scale-out breaks assumption 1.</b> Two instances = two independent caches = users see stale/different data
+      depending on which instance served them. <b>Mitigation for the move:</b> run a <b>single instance</b> and switch
+      <b>ARR affinity (session cookie stickiness) on</b> — this is a perfectly legitimate transitional stance for an
+      internal/expert-user system. Distributed cache (Azure Cache for Redis) is the later modernisation, not a
+      migration prerequisite.</li>
+  <li><b>Recycles break assumption 2.</b> App Service worker processes restart on platform maintenance, config changes
+      and slot swaps — more often than a hand-tuned on-prem IIS. The app already survives nightly IIS recycles
+      on-prem, so a cold cache must already be tolerable; verify that cache <i>population</i> is lazy and idempotent, and
+      enable <b>Always On</b> so the site isn't unloaded when idle.</li>
+  <li><b>Background extraction breaks assumption 3.</b> Any code you later move out of the request pipeline (T6) will
+      find <code>HttpContext.Current == null</code>. When extracting workflows into WebJobs, pass state explicitly;
+      grep for <code>HttpContext.Current</code> in the business layer <i>now</i> to size that work (script in the
+      <a href="#appendix">appendix</a>).</li>
+  <li><b>Session state:</b> WebForms wizards almost certainly use InProc session. Same story: fine on one sticky
+      instance; for scale-out or resilience move to the <b>SQL Server session-state provider</b> (a natural fit — the
+      session DB simply becomes one more database on the Managed Instance) or the Redis session provider. Both require
+      session-stored objects to be <b>serializable</b> — inventory that before switching.</li>
+  <li><b>Pin the <code>&lt;machineKey&gt;</code>.</b> On a single on-prem server the auto-generated machine key never
+      mattered. In App Service, restarts/swaps regenerate auto keys → ViewState MAC failures and forms-auth logouts.
+      Generate one explicit <code>&lt;machineKey&gt;</code> and put it in <code>web.config</code> before the first deployment.
+      This is the single most common WebForms-on-App-Service gotcha.</li>
+</ul>
+
+<h3 id="t4">T4 — Windows Service running weekly SQL jobs <span class="tag ok">LOW RISK — with the right target</span></h3>
+<p>App Service cannot host a Windows Service. But look at what the service actually <i>does</i>: it triggers SQL work
+on a schedule. That is exactly what <b>SQL Server Agent</b> does — and SQL Agent <b>exists on Azure SQL Managed
+Instance</b> (T-SQL job steps supported, schedules supported, Database Mail notifications supported with the
+<code>AzureManagedInstance_dbmail_profile</code> profile). Options, best first:</p>
+<div class="tblwrap"><table>
+<tr><th>Option</th><th>How</th><th>When</th></tr>
+<tr><td><b>SQL Agent on Managed Instance</b> <span class="tag ok">RECOMMENDED</span></td>
+    <td>Re-create the weekly job as T-SQL job steps on the MI. The Windows Service is simply <b>retired</b>. Zero application code.</td>
+    <td>When the job body is SQL (it is, per the profile). Note MI Agent limits: no CmdExec/PowerShell steps, no proxies.</td></tr>
+<tr><td><b>Triggered WebJob (CRON)</b></td>
+    <td>Convert the service body to a .NET Framework <b>console app</b>, deploy it as a scheduled WebJob beside the web app (requires Always On).</td>
+    <td>If the service does more than SQL (file shuffling, calls into app DLLs). WebJobs run full .NET Framework — legacy code moves as-is.</td></tr>
+<tr><td><b>Azure Functions timer trigger</b></td>
+    <td>A thin, modern-.NET function that calls the stored procedures.</td>
+    <td>If you're adopting FaaS anyway (<a href="#faas">Option B+</a>). Don't try to run the legacy DLLs inside Functions — modern Functions runtimes don't host .NET Framework libraries; keep the function thin.</td></tr>
+<tr><td><b>Keep the service on a small VM</b></td>
+    <td>A B-series VM running just the service.</td>
+    <td>Fallback only; it re-imports all IaaS ops burden for one weekly task.</td></tr>
+</table></div>
+
+<h3 id="t5">T5 — Import page → API handle → poll a DB table <span class="tag ok">LOW RISK — it's already cloud-shaped</span></h3>
+<p>This is the pleasant surprise of the profile: twenty years ago somebody built a textbook
+<b>asynchronous request–reply pattern</b> — kick off work, get a handle, poll for completion, resume. That is exactly
+the pattern Azure prescribes for long-running operations. Consequences:</p>
+<ul>
+  <li>The pattern survives migration <b>unchanged</b>: the API moves with the app (or stays wherever it lives), the
+      status table moves with its database, the polling loop keeps working.</li>
+  <li>Verify <b>how</b> the page polls. If it polls client-side (meta-refresh / AJAX timer hitting the server every few
+      seconds), each poll is a short request — perfect. If it blocks server-side inside one request while polling,
+      that request is subject to the 230-second limit (T6) and must be converted to client-side polling — a small,
+      page-local change.</li>
+  <li>The <i>"resume and continue processing the file"</i> step after completion is a candidate for the same treatment
+      as T6 if it can exceed a few minutes: enqueue it, reuse the very same status-table + polling UX the users already
+      know. <b>Reusing the app's own established pattern is the lowest-risk fix for every long operation in the
+      system.</b></li>
+  <li>Uploaded files: store them under <code>%HOME%</code> (persistent, shared, Azure-Files-backed) or better, in
+      <b>Blob Storage</b> with the DB row holding the blob path. Avoid <code>%TMP%</code> for anything that must survive
+      a recycle — it's per-instance and volatile.</li>
+</ul>
+
+<h3 id="t6">T6 — 10-minute in-memory WebForms workflows <span class="tag bad">HIGH RISK on App Service — the one true blocker to engineer around</span></h3>
+<div class="card bad">
+  <h4>The 230-second wall</h4>
+  <p style="margin-bottom:0">App Service (Windows) terminates any HTTP request that hasn't returned a response after
+  <b>~230 seconds</b> — a platform front-end/load-balancer limit that <b>cannot be raised</b> (Linux: 240s; raising
+  ASP.NET's own <code>executionTimeout</code> in <code>web.config</code> does not help — the platform cuts the connection
+  first). A synchronous postback that computes for 10 minutes <b>will fail with a 502</b> on App Service, no matter the
+  plan tier. On a VM you control IIS end-to-end and today's behaviour continues — this single trait is why the VM path
+  is "least effort".</p>
+</div>
+<p>Engineering around it, in increasing order of invasiveness:</p>
+<ol class="steps">
+  <li><b>Inventory which operations actually exceed ~3 minutes.</b> Often only a handful of steps do. Everything under
+      the limit needs no change. (IIS logs / App Insights on the current system give you the histogram.)</li>
+  <li><b>If the long step is really the database working</b> (a heavy proc call awaited synchronously): switch that page
+      to the <b>T5 pattern the app already owns</b> — insert a work request row, have the work run in the background
+      (SQL Agent job on demand, or a WebJob picking up the queue table), return immediately, poll client-side, resume on
+      completion. UI-wise users see the same "import-style" progress experience they already know.</li>
+  <li><b>If the long step is app-tier computation on in-memory data:</b> extract it into a <b>continuous WebJob</b>
+      consuming a queue (a DB table queue keeps it simple and transactional; Azure Storage/Service Bus queues are the
+      later refinement). The WebJob is a .NET Framework console app referencing the <i>same</i> VB.NET/C# business
+      DLLs — the computation code moves nearly verbatim; what changes is marshalling: input state must be persisted
+      (DB/Blob) instead of assumed in session, and <code>HttpContext.Current</code> references inside the moved code
+      must be replaced with explicit parameters (T3).</li>
+  <li><b>Transitional stopgap</b> (use sparingly): break the computation into chunks of &lt; 3 minutes driven by
+      successive client-side calls. It avoids background infrastructure but leaves fragile long-running state in
+      session; acceptable to de-risk one stubborn page, not as the general answer.</li>
+</ol>
+<p class="muted">Also remember: even on a VM, a 10-minute browser request is fragile (proxies, laptops sleeping,
+impatient F5). The queue-and-poll conversion is worth doing eventually regardless of hosting.</p>
+
+<h3 id="t7">T7 — Hundreds of dynamic SQL statements with multi-part names <span class="tag warn">DECISIVE for the data tier</span></h3>
+<p>The "many dots" are three/four-part names: <code>[Database].[schema].[object]</code> and occasionally
+<code>[LinkedServer].[Database].[schema].[object]</code>. Because they are embedded in <i>dynamic</i> SQL and proc
+bodies, they are effectively unrefactorable at migration scale — any target that doesn't execute them verbatim forces
+a rewrite of unknown breadth. This eliminates Azure SQL Database (no cross-DB three-part names; elastic query is
+read-only external tables and a per-statement rewrite) and makes the decision for you:</p>
+<ul>
+  <li><b>All databases must land on one SQL Managed Instance</b> (or one SQL Server VM). Then every
+      <code>[OtherDb].[dbo].[Table]</code> reference keeps working, byte for byte.</li>
+  <li><b>Four-part (linked-server) names need inventory:</b> MI supports linked servers to SQL-family targets
+      (SQL Server, MI, Azure SQL DB, Synapse SQL) — but <b>not</b> to files, Access, Oracle or other OLE DB sources.
+      If a linked server points outside the SQL family, that integration needs a replacement (import job, data
+      virtualization via <code>OPENROWSET</code> on Blob, or a small ETL) — find these <i>early</i> (appendix query).</li>
+  <li><b>Collation is a silent killer for dynamic SQL.</b> The MI <b>server collation is chosen at creation and cannot
+      be changed</b>. If it doesn't match the on-prem server collation, every temp-table join in those hundreds of
+      statements risks <code>Cannot resolve the collation conflict</code> errors (tempdb inherits server collation).
+      Read the current server collation first (appendix) and create the MI with exactly that.</li>
+  <li>Same story for the <b>time zone</b>: MI lets you pick the instance time zone <b>only at creation</b>. A 20-year-old
+      app is full of <code>GETDATE()</code>/<code>DateTime.Now</code> assumptions; matching the on-prem time zone avoids a
+      whole class of "the weekly job ran at the wrong hour / dates shifted by two hours" regressions. (On App Service set
+      <code>WEBSITE_TIME_ZONE</code> to match; on a VM set the OS time zone.)</li>
+</ul>
+
+<h3 id="t8">T8 — Many databases <span class="tag ok">LOW RISK once T7 is settled</span></h3>
+<ul>
+  <li>Consolidate <b>all</b> of them onto the single Managed Instance in <b>one</b> migration wave. A split data estate
+      (some DBs moved, some not) turns every cross-DB query into a cross-network query — latency and correctness chaos.
+      Move the data tier atomically.</li>
+  <li>Cross-database <i>transactions</i> work within the instance; if any code uses distributed transactions (MSDTC)
+      across servers, MI supports DTC scenarios but flag them for explicit testing.</li>
+  <li>Watch security model details: cross-DB <b>ownership chaining</b> and <code>TRUSTWORTHY</code> settings, server-level
+      logins mapped across DBs, SQL users with server roles — script logins/permissions across (e.g.,
+      <code>sp_help_revlogin</code>-style transfer) and verify <code>EXECUTE AS</code> paths used by procs.</li>
+  <li>Size the instance for the <b>sum</b> of all databases (storage <i>and</i> IO). General Purpose MI has
+      per-file IO characteristics; the weekly batch (T4) is often the IO peak that defines the tier, not the daily web load.</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2 id="data">4. The data tier decision (make it first)</h2>
+
+<div class="tblwrap"><table>
+<tr><th>Capability the app needs</th><th>Azure SQL Database</th><th>Azure SQL <b>Managed Instance</b></th><th>SQL Server on Azure VM</th></tr>
+<tr><td>Cross-database queries, three/four-part names (T7)</td><td class="verdict"><span class="tag bad">NO</span> (elastic query: read-only, per-statement rewrite)</td><td><span class="tag ok">YES</span> — within the instance, unchanged</td><td><span class="tag ok">YES</span></td></tr>
+<tr><td>SQL Agent for the weekly jobs (T4)</td><td><span class="tag bad">NO</span> (Elastic Jobs — different model)</td><td><span class="tag ok">YES</span> — T-SQL steps, schedules, DbMail notify</td><td><span class="tag ok">YES</span> — full Agent</td></tr>
+<tr><td>Linked servers</td><td><span class="tag bad">NO</span></td><td><span class="tag warn">SQL-family targets only</span></td><td><span class="tag ok">YES</span> — any OLE DB</td></tr>
+<tr><td>Cross-DB transactions</td><td>Elastic transactions only</td><td><span class="tag ok">YES</span> within instance; DTC supported</td><td><span class="tag ok">YES</span></td></tr>
+<tr><td>Instance-level collation &amp; time-zone choice</td><td>Per-DB collation only</td><td><span class="tag ok">At creation</span> (immutable — choose to match on-prem!)</td><td><span class="tag ok">Full control</span></td></tr>
+<tr><td>Ops burden (patching, HA, backups)</td><td>None (PaaS)</td><td>None (PaaS; built-in HA, PITR backups)</td><td><b>Yours</b> (or heavy automation)</td></tr>
+<tr><td>Restore path from on-prem</td><td>BACPAC / data copy</td><td><span class="tag ok">Native backup/restore from URL</span>, DMS, Managed Instance link for near-zero-downtime</td><td>Native backup/restore</td></tr>
+</table></div>
+
+<div class="card ok">
+  <h4>Recommendation</h4>
+  <p style="margin-bottom:0"><b>Azure SQL Managed Instance, all databases on one instance</b>, provisioned with the
+  on-prem server's exact <b>collation</b> and <b>time zone</b>. It is the only PaaS target that runs the T-SQL estate
+  unchanged, absorbs the Windows Service via SQL Agent, and removes database ops from the team. SQL-on-VM is the
+  fallback if assessment uncovers hard blockers (non-SQL linked servers you can't replace, CmdExec job steps,
+  filesystem-dependent CLR, <code>xp_cmdshell</code> usage). <b>This data-tier choice is identical for Option A and
+  Option B</b> — which is what makes the web-tier decision low-stakes and even reversible.</p>
+</div>
+
+<h4>Assessment tooling</h4>
+<ul>
+  <li>Run the <b>Azure SQL migration assessment</b> (Azure Data Studio migration extension / Azure Migrate database
+      assessment) against the source instance — it flags MI-incompatible features per database automatically.</li>
+  <li>Complement it with the <a href="#appendix">appendix queries</a>: they specifically hunt what generic tools
+      under-report — cross-DB references inside <i>dynamic</i> SQL, linked-server targets, Agent job step types,
+      collation, and deprecated-feature counters.</li>
+  <li>Rehearse with <b>native backup/restore to a test MI</b> early. Restoring all databases and running the
+      <a href="#testing">test ladder</a> against them answers 80% of the risk questions for the price of one weekend.</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2 id="optiona">5. Option A — Azure VM lift-and-shift (the least-effort baseline)</h2>
+
+<pre class="shell"><span class="c">┌─ Azure VNet ────────────────────────────────────────────────────┐
+│  ┌─ Windows Server VM ────────────┐   ┌─ Azure SQL Managed      │
+│  │ IIS: WebForms app (.NET 4.8)   │──▶│   Instance              │
+│  │ Windows Service (weekly jobs)* │   │  all databases,         │
+│  │ local file shares, SMTP relay  │   │  cross-DB SQL unchanged │
+│  └────────────────────────────────┘   └──────────────────────── │
+│   * or retire it: SQL Agent on MI                               │
+└──────────────────────────────────────────────────────────────────┘
+   Entry: Application Gateway / public IP + DNS     Backup: Azure Backup
+</span></pre>
+
+<h4>What it involves</h4>
+<ol class="steps">
+  <li><b>Assess &amp; replicate</b> with Azure Migrate (discovery, right-sizing, dependency map), or simply build a fresh
+      Windows Server VM and deploy the app from source — a fresh build is cleaner than dragging 20 years of server
+      snowflake-state along, and forces the (healthy) rediscovery of every undocumented IIS setting.</li>
+  <li><b>Data tier:</b> Managed Instance as per <a href="#data">§4</a> (recommended even on the VM path), or SQL Server
+      on the same/second VM if assessment found MI blockers.</li>
+  <li><b>Re-point connection strings</b>; set the VM OS time zone to match on-prem; pin the machineKey anyway (good hygiene).</li>
+  <li><b>Networking:</b> VM and MI in the same VNet/region; no public SQL endpoint; HTTPS in front (App Gateway or IIS certs).</li>
+  <li><b>Cutover:</b> final DB sync (MI link or log-shipped native restores), DNS switch, freeze window.</li>
+</ol>
+
+<div class="tblwrap"><table>
+<tr><th>Pros</th><th>Cons</th></tr>
+<tr><td>
+  • Everything works as today: 10-minute requests, Windows Service, in-memory state, local files, COM/GAC if present<br>
+  • Smallest testing surface; fastest credible timeline<br>
+  • No 230-second constraint; full IIS control<br>
+  • Good stepping stone: App Service later, from a stable Azure baseline
+</td><td>
+  • You still own OS patching, IIS care, certificates, AV, hardening — forever<br>
+  • Availability is one VM unless you build (and operate) redundancy yourself<br>
+  • No deployment slots, no platform autoscale, weakest "cloud dividend"<br>
+  • Cost is continuous whether idle or busy
+</td></tr>
+</table></div>
+
+<!-- ================================================================ -->
+<h2 id="optionb">6. Option B — Azure App Service (the recommended target)</h2>
+
+<pre class="shell"><span class="c">┌─ Azure VNet ─────────────────────────────────────────────────────────┐
+│  ┌─ App Service plan (Windows, P-tier) ─────────┐  ┌─ SQL Managed    │
+│  │  Web app: WebForms .NET 4.8                  │  │  Instance       │
+│  │   single instance + ARR affinity, Always On  │─▶│  all DBs        │
+│  │  WebJobs:                                    │  │  SQL Agent:     │
+│  │   • continuous: workflow/queue worker (T6)   │  │   weekly jobs   │
+│  │   • triggered:  anything not SQL-shaped (T4) │  │   (T4)          │
+│  └──────────────────────────────────────────────┘  └───────────────  │
+│  Blob Storage (import files) · Key Vault (secrets) · App Insights    │
+└───────────────────────────────────────────────────────────────────────┘
+</span></pre>
+
+<p>App Service (Windows) runs .NET Framework 4.8 WebForms first-class. The migration succeeds or fails on four platform
+constraints — all identified in §3, all with a worked answer:</p>
+
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Platform constraint</th><th>Trait hit</th><th>Engineering answer (minimum viable)</th></tr>
+<tr><td>1</td><td><b>230-second request limit</b> (immovable)</td><td>T6, parts of T5</td>
+    <td>Inventory long pages; convert them to the app's own async-handle-poll pattern (T5); heavy app-tier compute → continuous WebJob reading a queue table.</td></tr>
+<tr><td>2</td><td><b>Instance memory is neither shared nor durable</b></td><td>T3, T6</td>
+    <td>Single instance + ARR affinity + Always On + pinned machineKey at first; SQL/Redis session provider and distributed cache as the later scale-out step.</td></tr>
+<tr><td>3</td><td><b>No Windows Services</b></td><td>T4</td>
+    <td>Retire the service into SQL Agent on MI (preferred) or a scheduled WebJob console app.</td></tr>
+<tr><td>4</td><td><b>Sandbox:</b> no COM registration, no GAC installs, no registry writes, no out-of-proc COM, GDI-dependent PDF/imaging libs restricted, <b>outbound port 25 blocked</b></td><td>whatever inventory finds</td>
+    <td>Grep the solution (appendix). Mail → authenticated relay on 587 / Azure Communication Services. If a hard COM/GAC dependency survives: consider <b>Windows containers on App Service</b> or the new <b>App Service "Managed Instance"</b> plan option (preview) which permits COM/GAC/registry via install scripts — or fall back to Option A for that component.</td></tr>
+</table></div>
+
+<h4>What you gain over the VM</h4>
+<ul>
+  <li><b>No OS to own.</b> Patching, TLS config, IIS care — gone.</li>
+  <li><b>Deployment slots:</b> stage a build, warm it, swap; swap back = instant rollback. (Mind: swaps recycle the
+      worker — schedule around long-running workflow sessions, another reason to finish constraint #1 properly.)</li>
+  <li><b>Application Insights auto-instrumentation</b> for .NET Framework — request/dependency/SQL telemetry with
+      <b>zero code changes</b>, toggled in the portal. For a 20-year-old app this observability jump is transformative:
+      it's how you'll find every slow dynamic query the day after cutover.</li>
+  <li><b>A path to scale-out</b> once state is externalised (constraint #2's second step), plus platform HA for the
+      web tier immediately.</li>
+</ul>
+
+<div class="card tip">
+  <h4>Sizing &amp; settings starting point</h4>
+  <p style="margin-bottom:0">Plan: <b>P1v3</b> (one production instance) — scale the SKU up rather than out until state
+  is externalised. Settings: <code>Always On = On</code>, <code>ARR affinity = On</code>, 64-bit worker,
+  <code>WEBSITE_TIME_ZONE</code> = on-prem time zone, App Insights on, VNet integration to reach the MI privately,
+  connection strings + secrets as Key Vault references. Deploy via ZIP/Run-from-package from CI, not FTP.</p>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="faas">7. Option B+ — where FaaS genuinely helps (and where it doesn't)</h2>
+
+<div class="card warn">
+  <h4>The .NET Framework rule for Functions</h4>
+  <p style="margin-bottom:0">Modern Azure Functions runtimes do <b>not host .NET Framework class libraries</b> — you
+  cannot lift the VB.NET/C# business DLLs into a Function. Functions in this architecture must be <b>thin, new,
+  modern-.NET components</b> that call stored procedures or HTTP endpoints. Anything that needs the legacy DLLs
+  belongs in <b>WebJobs</b> (full .NET Framework console apps) — that's the pragmatic FaaS boundary for this system.
+  Also note the platform symmetry: an HTTP-triggered Function has the <b>same 230-second</b> response limit; FaaS is
+  not an escape hatch from constraint #1 — Durable Functions implement the same async-handle-poll pattern the app
+  already uses.</p>
+</div>
+
+<div class="tblwrap"><table>
+<tr><th>FaaS component</th><th>Replaces / adds</th><th>Worth it?</th></tr>
+<tr><td><b>Timer-triggered Function</b> calling the weekly procs</td><td>Alternative to SQL Agent / scheduled WebJob (T4)</td>
+    <td>Only if you standardise all scheduling on Functions; otherwise SQL Agent is closer to the data and simpler. <span class="tag info">OPTIONAL</span></td></tr>
+<tr><td><b>Durable Functions orchestration</b> for the import chain (T5): upload → validate → process → notify</td><td>The DB-polling choreography, eventually</td>
+    <td>Attractive <i>after</i> the move, when the import API contract is being touched anyway. Durable's status API is a managed version of the handle-and-poll table. <span class="tag info">PHASE 4</span></td></tr>
+<tr><td><b>Queue-triggered Function + Service Bus</b> between import intake and processing</td><td>Table-as-queue</td>
+    <td>Gains dead-lettering, retries, competing consumers — valuable once volume or reliability demands it; overkill on day one. <span class="tag info">PHASE 4</span></td></tr>
+<tr><td><b>Event Grid / Blob trigger</b>: file lands in Blob → processing starts</td><td>"Watch folder" semantics</td>
+    <td>Clean modern replacement if the current system has any file-drop integration. <span class="tag info">CASE-BY-CASE</span></td></tr>
+</table></div>
+
+<p><b>Bottom line:</b> ship Option B with SQL Agent + WebJobs (zero new runtimes), and adopt FaaS selectively in the
+hardening phase where each piece pays rent. FaaS is a modernisation dividend, not a migration requirement.</p>
+
+<!-- ================================================================ -->
+<h2 id="compare">8. Side-by-side &amp; recommendation</h2>
+
+<div class="tblwrap"><table>
+<tr><th></th><th>Option A — VM</th><th>Option B — App Service</th><th>Option B+ — + FaaS</th></tr>
+<tr><td>Application code changes</td><td>≈ 0</td><td>Small &amp; targeted: machineKey, long-page conversions (T6), service→Agent/WebJob (T4), file paths, SMTP</td><td>B + thin new components</td></tr>
+<tr><td>Riskiest item</td><td>Ops discipline decays; snowflake VM v2</td><td>An unconverted &gt;230s page found late</td><td>Same as B</td></tr>
+<tr><td>Time to first production cutover</td><td>Shortest</td><td>+ the T6 inventory &amp; conversions</td><td>+ a bit more</td></tr>
+<tr><td>Ongoing ops burden</td><td><b>High</b> (OS, IIS, certs, patching)</td><td><b>Low</b></td><td><b>Low</b></td></tr>
+<tr><td>Rollback story</td><td>DNS back + DB restore</td><td>Slot swap (app) / DNS + DB restore (full)</td><td>Same as B</td></tr>
+<tr><td>Future (scale-out, modernisation)</td><td>All manual</td><td>Natural: externalise state → scale out; slots; App Insights</td><td>Best</td></tr>
+</table></div>
+
+<div class="card ok">
+  <h4>Recommended course</h4>
+  <p><b>Data tier (both options): SQL Managed Instance, all databases, matching collation &amp; time zone.</b>
+  Weekly jobs to SQL Agent, retiring the Windows Service.</p>
+  <p style="margin-bottom:0"><b>Web tier: aim for Option B</b> (App Service, single sticky instance, WebJobs), gated on
+  one honest spike: the <b>T6 inventory</b>. If only a handful of pages exceed ~3 minutes, convert them using the app's
+  own polling pattern and go App Service — the ops savings compound forever. If the inventory reveals long-request
+  behaviour woven through dozens of workflows, take <b>Option A now</b> (same MI underneath) and schedule the App
+  Service replatform as a second step — nothing about the VM path is wasted, since the data-tier work, config
+  externalisation and test ladder all carry over.</p>
+</div>
+
+<!-- ================================================================ -->
+<h2 id="plan">9. The phased migration plan</h2>
+
+<h3>Phase 0 — Inventory &amp; assessment (2–4 weeks, no infrastructure)</h3>
+<ul class="chk">
+  <li>Run every script in the <a href="#appendix">appendix</a>: cross-DB references, linked servers, Agent job steps,
+      collation/time zone, dynamic-SQL census, <code>HttpContext.Current</code>/session/static-state census, SMTP,
+      file-path and COM/GAC census.</li>
+  <li>Run the Azure SQL migration assessment against all databases; triage findings into
+      <i>blocker / needs-change / noise</i>.</li>
+  <li>Build the <b>T6 histogram</b>: from IIS logs, list pages by max request duration. Decide Option A vs B on evidence.</li>
+  <li>Freeze the target: region (one region for app + MI — the app is chatty; latency between tiers must be
+      sub-millisecond-ish, which also rules out any "app on-prem, DB in Azure" interim), MI SKU (sum of DB sizes + IO
+      headroom for the weekly batch), App Service plan.</li>
+  <li>Stand up CI that builds the solution cleanly from source. You cannot deploy what you cannot build.</li>
+</ul>
+
+<h3>Phase 1 — Data-tier rehearsal (the cheap de-risker)</h3>
+<ul class="chk">
+  <li>Provision a <b>test MI</b> with the matched collation/time zone. Restore <b>all</b> databases via native backup
+      from URL.</li>
+  <li>Re-create Agent jobs; run the weekly job by hand; diff outcomes against on-prem.</li>
+  <li>Spin up a throwaway <b>test VM in the same VNet</b>, deploy the app on it, point it at the test MI, and run the
+      <a href="#testing">test ladder</a>. This exercises the <i>hundreds of dynamic statements</i> against MI with zero
+      commitment to the final web tier — the single highest-value rehearsal available, and it works identically
+      whether you end up choosing Option A or B.</li>
+  <li>Fix what falls out (collation conflicts, login mappings, ownership chains, non-SQL linked servers).</li>
+</ul>
+
+<h3>Phase 2 — Web tier build-out (Option B shown; Option A is the same minus conversions)</h3>
+<ul class="chk">
+  <li>App Service plan + web app; settings per <a href="#optionb">§6</a>; pin <code>&lt;machineKey&gt;</code>; VNet
+      integration; Key Vault references; App Insights on.</li>
+  <li>Convert the T6 pages identified in Phase 0 (async-handle-poll + WebJob worker); convert server-side-blocking polls
+      in T5 to client-side polling if found.</li>
+  <li>Windows Service → SQL Agent job(s); delete the service from the deployment; if any non-SQL logic remains, a
+      triggered WebJob console app inherits it.</li>
+  <li>File I/O → <code>%HOME%</code> or Blob; SMTP → authenticated 587/ACS; remove any writes outside the app root.</li>
+  <li>Deploy to a <b>staging slot</b>; run the full test ladder there against the test MI.</li>
+</ul>
+
+<h3>Phase 3 — Cutover</h3>
+<ul class="chk">
+  <li>Announce a freeze window (submissions paused — the async import queue makes this graceful).</li>
+  <li>Final data sync to the <b>production MI</b>: Managed Instance link or fresh native restores during the freeze.</li>
+  <li>Swap staging → production slot (or flip DNS to the VM); smoke-test the ladder's top rungs.</li>
+  <li>Keep the on-prem system <b>read-only warm</b> for a defined rollback window (e.g., two weeks): rollback = DNS back
+      + restore the delta or replay the frozen queue.</li>
+</ul>
+
+<h3>Phase 4 — Hardening &amp; dividends (post-stability)</h3>
+<ul class="chk">
+  <li>Externalise session (SQL provider on the MI — it's just one more database) and cache (Redis) → enable scale-out
+      and remove ARR affinity.</li>
+  <li>Adopt FaaS where it pays (<a href="#faas">§7</a>); consider Service Bus for the import pipeline.</li>
+  <li>Microsoft Entra authentication (App Service Easy Auth in front of forms auth, or proper integration), private
+      endpoints everywhere, CI/CD with slot gates.</li>
+  <li>Only now, with telemetry in hand, consider the long-term UI modernisation programme — as a separate,
+      data-informed decision.</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2 id="testing">10. Test ladder</h2>
+<p>Run bottom-up; each rung isolates a layer. Rungs 1–4 run in Phase 1 (test MI + throwaway VM); all rungs run in
+Phase 2 staging and again post-cutover.</p>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Test</th><th>Proves</th></tr>
+<tr><td>1</td><td>Restore all DBs to MI; <code>DBCC CHECKDB</code>; row-count &amp; checksum spot-diffs vs on-prem</td><td>Data fidelity, storage sizing</td></tr>
+<tr><td>2</td><td>Execute the <b>dynamic-SQL census</b> outputs (appendix) — every proc with multi-part names — against MI with production-shaped parameters</td><td>T7: the whole cross-DB estate runs; collation clean</td></tr>
+<tr><td>3</td><td>Run the weekly Agent job; diff its outputs table-by-table against an on-prem run on the same snapshot</td><td>T4 retirement of the Windows Service</td></tr>
+<tr><td>4</td><td>App boots against MI; login works; reference-data caches populate (cold-start twice to prove lazy cache rebuild)</td><td>T2, T3 basics; machineKey; connection strings</td></tr>
+<tr><td>5</td><td>End-to-end import: upload → handle returned → poll → completion → file processing resumes</td><td>T5 unchanged behaviour</td></tr>
+<tr><td>6</td><td>Every converted long workflow: start → progress polling → result identical to the legacy synchronous run (golden-file diff)</td><td>T6 conversions are behaviour-preserving</td></tr>
+<tr><td>7</td><td>Kill/recycle drills: restart the app mid-workflow, swap slots under light load</td><td>State assumptions; user-visible failure modes are acceptable &amp; recoverable</td></tr>
+<tr><td>8</td><td>Soak: a production-like day replayed (App Insights on), incl. the largest historical import file</td><td>Latency profile app↔MI, chatty-query hotspots, memory ceiling of the plan</td></tr>
+<tr><td>9</td><td>Ops drills: point-in-time restore of one DB, slot-swap rollback, Key Vault secret rotation, alert firing</td><td>The runbook, not the app</td></tr>
+</table></div>
+
+<!-- ================================================================ -->
+<h2 id="trouble">11. Troubleshooting the first weeks in the cloud</h2>
+<div class="tblwrap"><table>
+<tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+<tr><td>502/504 on exactly the same slow pages, at ~4 minutes</td><td>The 230-second front-end limit (App Service)</td><td>That page missed the T6 inventory — convert it to the async-poll pattern. No config raises this limit.</td></tr>
+<tr><td><code>Validation of viewstate MAC failed</code> / users randomly logged out</td><td>Auto-generated machineKey rotated on restart/swap, or multiple instances without a shared key</td><td>Pin an explicit <code>&lt;machineKey&gt;</code>; verify single-instance + ARR affinity while session is InProc.</td></tr>
+<tr><td>Users lose wizard progress at quiet times</td><td>Site unloaded when idle / worker recycled with InProc session</td><td>Always On = On; accept-and-message recycling risk until session is externalised; schedule swaps off-hours.</td></tr>
+<tr><td><code>Cannot resolve the collation conflict…</code> in procs that "always worked"</td><td>MI created with default collation ≠ on-prem; tempdb follows server collation</td><td>Fatal-but-early if caught in Phase 1: recreate the MI with the matching collation. This cannot be altered in place.</td></tr>
+<tr><td>Dates/times shifted; weekly job fires at the wrong hour</td><td>UTC platform defaults vs on-prem local-time assumptions</td><td>MI: time zone is creation-time — set it then. App Service: <code>WEBSITE_TIME_ZONE</code>. VM: OS time zone. Audit <code>GETDATE()</code>/<code>DateTime.Now</code> hotspots.</td></tr>
+<tr><td><code>Reference to database and/or server name … is not supported</code></td><td>A three/four-part-name statement reached an Azure SQL <b>Database</b>, not the MI</td><td>Wrong target or a stray DB left off the instance — consolidate (T8). This error appearing at all means the data-tier decision was violated somewhere.</td></tr>
+<tr><td>Linked-server query fails on MI</td><td>Target is not SQL-family (file/Access/Oracle), or provider options unsupported</td><td>Replace with import job / <code>OPENROWSET</code> on Blob / small ETL. Should have surfaced in the Phase 0 linked-server census.</td></tr>
+<tr><td>Emails silently not sent</td><td>Outbound port 25 blocked on App Service</td><td>Authenticated SMTP on 587 or Azure Communication Services; check <code>SmtpClient</code> config in code <i>and</i> in DbMail for Agent notifications (MI requires the <code>AzureManagedInstance_dbmail_profile</code> profile).</td></tr>
+<tr><td><code>FileNotFoundException</code> / access denied writing files</td><td>Hard-coded paths (<code>D:\…</code>, UNC shares), or writes outside the app root in the sandbox</td><td>Map to <code>%HOME%</code> (persistent) / <code>%TMP%</code> (volatile, per-instance) / Blob. The Phase 0 path census exists precisely for this.</td></tr>
+<tr><td>PDF/graphics generation throws only in Azure</td><td>Sandbox restriction on GDI-dependent libraries (App Service multitenant)</td><td>Swap the library for a GDI-free one, isolate that feature in a Windows container / Functions container, or serve it from the VM option.</td></tr>
+<tr><td>Login failures from the app only</td><td>Server-level logins not transferred; SID mismatch; Entra vs SQL auth confusion</td><td>Transfer logins with matching SIDs; re-map orphaned users; verify <code>EXECUTE AS</code> and ownership-chain paths.</td></tr>
+<tr><td>Everything works, but ~30–50% slower</td><td>Chatty data access (N+1 across the wire) amplified by app↔DB latency</td><td>Confirm same region/VNet; use App Insights dependency telemetry to rank per-request SQL round-trips; batch the top offenders. (LINQ to SQL lazy loading is the usual suspect.)</td></tr>
+<tr><td>Scheduled WebJob never fires</td><td>Always On off, or <code>WEBJOBS_STOPPED</code> set</td><td>Always On = On on the plan; check WebJobs dashboard logs.</td></tr>
+</table></div>
+
+<!-- ================================================================ -->
+<h2 id="cost">12. Cost orientation (indicative only)</h2>
+<p class="muted">Orders of magnitude for a modest production footprint, EU regions, pay-as-you-go; validate with the
+Azure pricing calculator. Azure Hybrid Benefit (existing Windows/SQL licences) and 1–3-year reservations commonly cut
+30–55%.</p>
+<div class="tblwrap"><table>
+<tr><th>Component</th><th>Option A (VM)</th><th>Option B (App Service)</th></tr>
+<tr><td>Web tier</td><td>D4s-class Windows VM ≈ €250–350/mo + Azure Backup</td><td>P1v3 plan ≈ €120–180/mo (slots, WebJobs included)</td></tr>
+<tr><td>Data tier (identical in both)</td><td colspan="2">SQL MI General Purpose 4–8 vCore ≈ €700–1,800/mo, licence included (AHB reduces sharply); storage per GB</td></tr>
+<tr><td>Supporting services</td><td colspan="2">Key Vault, Blob, App Insights: tens of €/mo at this scale; Redis (Phase 4) from ≈ €40/mo</td></tr>
+<tr><td>Hidden line item</td><td><b>Your hours</b>: OS patching, cert renewals, IIS care — indefinitely</td><td>≈ none for the platform; you own only the app</td></tr>
+</table></div>
+<p>The two options usually land within the same order of magnitude on the Azure bill; the real difference is the
+operational labour line. That, plus slots and built-in telemetry, is the argument for Option B whenever the T6
+inventory permits it.</p>
+
+<!-- ================================================================ -->
+<h2 id="appendix">13. Appendix — inventory &amp; assessment scripts</h2>
+
+<h3>A. SQL estate census (run on the source server)</h3>
+<pre><code>-- A1. Server collation & time zone context (MI: both are CREATION-TIME choices)
+SELECT SERVERPROPERTY('Collation') AS server_collation;
+SELECT name, collation_name FROM sys.databases ORDER BY name;
+
+-- A2. Cross-database references visible to the engine (static SQL in modules)
+SELECT DB_NAME() AS from_db, OBJECT_SCHEMA_NAME(d.referencing_id) AS ref_schema,
+       OBJECT_NAME(d.referencing_id) AS referencing_object,
+       d.referenced_database_name, d.referenced_schema_name, d.referenced_entity_name
+FROM sys.sql_expression_dependencies d
+WHERE d.referenced_database_name IS NOT NULL
+  AND d.referenced_database_name &lt;&gt; DB_NAME();      -- run per database
+
+-- A3. DYNAMIC SQL census — dependency views cannot see into strings; hunt the text
+SELECT OBJECT_SCHEMA_NAME(m.object_id) AS s, OBJECT_NAME(m.object_id) AS o,
+       LEN(m.definition) AS len,
+       CASE WHEN m.definition LIKE '%sp_executesql%' THEN 1 ELSE 0 END AS uses_sp_executesql,
+       CASE WHEN m.definition LIKE '%EXEC%(%'        THEN 1 ELSE 0 END AS uses_exec_string
+FROM sys.sql_modules m
+WHERE m.definition LIKE '%sp_executesql%' OR m.definition LIKE '%EXEC%(%'
+ORDER BY len DESC;                                   -- run per database
+
+-- A4. Multi-part ("dotted") names inside module text — candidates for cross-DB/linked use
+SELECT OBJECT_SCHEMA_NAME(m.object_id) AS s, OBJECT_NAME(m.object_id) AS o
+FROM sys.sql_modules m
+WHERE m.definition LIKE '%].[[]%].[[]%'              -- [x].[y].[z] pattern
+   OR m.definition LIKE '%..%';                      -- Db..Table shorthand
+-- (Also grep application source for the same patterns — dynamic SQL built in code!)
+
+-- A5. Linked servers & their targets (MI supports SQL-family targets only)
+SELECT name, product, provider, data_source, is_linked FROM sys.servers WHERE is_linked = 1;
+
+-- A6. Agent jobs & step types (MI Agent: T-SQL steps OK; CmdExec/PowerShell/proxies NOT)
+SELECT j.name, s.step_id, s.subsystem, LEFT(s.command, 200) AS command_preview,
+       sch.name AS schedule_name
+FROM msdb.dbo.sysjobs j
+JOIN msdb.dbo.sysjobsteps s ON s.job_id = j.job_id
+LEFT JOIN msdb.dbo.sysjobschedules js ON js.job_id = j.job_id
+LEFT JOIN msdb.dbo.sysschedules sch ON sch.schedule_id = js.schedule_id
+ORDER BY j.name, s.step_id;
+
+-- A7. Feature red flags for PaaS targets
+SELECT name FROM sys.assemblies WHERE is_user_defined = 1;            -- CLR
+SELECT * FROM sys.service_queues WHERE is_ms_shipped = 0;             -- Service Broker
+EXEC sp_configure 'xp_cmdshell';                                      -- xp_cmdshell enabled?
+SELECT instance_name, cntr_value FROM sys.dm_os_performance_counters
+WHERE object_name LIKE '%Deprecated Features%' AND cntr_value &gt; 0
+ORDER BY cntr_value DESC;                                             -- what old syntax still runs
+</code></pre>
+
+<h3>B. Application source census (PowerShell, run at the solution root)</h3>
+<pre><code># B1. In-memory state & context coupling (T3/T6 sizing)
+$patterns = 'HttpContext\.Current', 'Session\[', 'Application\[', 'Cache\[',
+            'HttpRuntime\.Cache', 'Shared\s+\w+\s+As', 'static\s+\w+'   # VB Shared + C# static
+foreach ($p in $patterns) {
+  $n = (Get-ChildItem -Recurse -File | Where-Object Extension -in '.vb','.cs','.aspx','.ascx' |
+        Select-String -Pattern $p).Count
+  '{0,-28} {1,6}' -f $p, $n
+}
+
+# B2. Sandbox & environment tripwires (T-sandbox, files, mail, time)
+$tripwires = 'System\.IO\.(File|Directory)', 'Server\.MapPath', '[A-Z]:\\\\', '\\\\\\\\\w+\\',  # drive/UNC paths
+             'SmtpClient', 'System\.Drawing', 'Microsoft\.Win32\.Registry', 'CreateObject\(',   # GDI/registry/COM
+             'DateTime\.Now'                                                                     # local-time logic
+foreach ($p in $tripwires) {
+  Get-ChildItem -Recurse -File | Where-Object Extension -in '.vb','.cs','.aspx','.config' |
+    Select-String -Pattern $p | Group-Object Path | Sort-Object Count -Descending |
+    Select-Object -First 5 Name, Count | Format-Table -AutoSize
+}
+
+# B3. Dynamic SQL built in application code (A4's blind spot)
+Get-ChildItem -Recurse -Include *.vb, *.cs |
+  Select-String -Pattern 'ExecuteQuery|ExecuteCommand|SqlCommand|"\s*SELECT|"\s*EXEC' |
+  Group-Object Path | Sort-Object Count -Descending | Select-Object -First 20 Name, Count
+
+# B4. Long-request suspects from IIS logs (T6 histogram; adjust log path/fields)
+# time-taken is the last field in the default W3C format, in milliseconds
+Get-ChildItem 'C:\inetpub\logs\LogFiles\W3SVC1\*.log' | ForEach-Object {
+  Get-Content $_ | Where-Object { $_ -notmatch '^#' } | ForEach-Object {
+    $f = $_ -split ' '
+    [pscustomobject]@{ Url = $f[4]; Ms = [int]$f[-1] }
+  }
+} | Where-Object Ms -gt 180000 |                                   # > 3 minutes
+  Group-Object Url | Sort-Object Count -Descending |
+  Select-Object Name, Count, @{n='MaxMin';e={ [math]::Round(($_.Group.Ms | Measure-Object -Maximum).Maximum/60000,1) }}
+</code></pre>
+
+<h3>C. Go/no-go checklist for Option B</h3>
+<ul class="chk">
+  <li>T6 histogram: every &gt;3-minute page has a conversion plan (or the count forced Option A — also a valid outcome).</li>
+  <li>No COM/GAC/registry-write dependency without a workaround (else: Windows containers / App Service Managed
+      Instance preview / Option A).</li>
+  <li>All linked servers are SQL-family or have replacement plans.</li>
+  <li>All Agent job steps are T-SQL (or moved to WebJobs).</li>
+  <li>MI creation parameters locked: collation + time zone matched to source.</li>
+  <li><code>&lt;machineKey&gt;</code> pinned; session objects serializable (for the later provider switch).</li>
+  <li>SMTP on 587/ACS; no port-25 senders left.</li>
+  <li>File I/O mapped to <code>%HOME%</code>/Blob; no writes outside the app root.</li>
+  <li>CI produces a deployable package from a clean clone.</li>
+</ul>
+
+<hr>
+<p class="muted">Facts current as of mid-2026 and verified against Microsoft documentation: the App Service
+230-second (Windows) front-end request limit; Azure SQL Database's lack of cross-database three/four-part-name
+queries vs Managed Instance's native support; Managed Instance SQL Agent (T-SQL steps, no CmdExec/PowerShell/proxies)
+and linked servers (SQL-family targets only); Managed Instance Database Mail profile naming; App Service sandbox
+rules (no registry writes, no out-of-process COM, port 25 blocked) and the preview "Managed Instance on App Service"
+plan option for COM/GAC/registry-dependent legacy apps. Re-verify limits before committing an architecture —
+platform constraints evolve.</p>
+
+</main>
+</body>
+</html>
