@@ -1,0 +1,152 @@
+==============================================================================
+ MOVING A COMPLEX .NET FRAMEWORK APP TO AZURE
+ Effort assessment for the VM (lift-and-shift / IaaS) hosting choice
+==============================================================================
+
+THE APP (assumed shape)
+  * Many ASP.NET WebForms pages
+  * Many VB.NET and C# class libraries
+  * A Windows service
+  * Emails sent from several different pages
+  * A call to an external service
+  * Access to many different SQL Server databases
+  * Forms Authentication, with user data held in a SQL Server database
+
+
+==============================================================================
+ THE HEADLINE
+==============================================================================
+Hosting on a VM (lift-and-shift) is the LOWEST-EFFORT way to reach Azure,
+because you move the infrastructure, not the application. On a Windows Server
+VM with IIS you control the whole machine, so the app runs as it does today.
+The effort lands on the DATA TIER, NETWORKING, and TESTING - not on the code.
+
+
+==============================================================================
+ WHAT MOVES UNCHANGED (why the VM path is cheap)
+==============================================================================
+  * The WebForms pages and all VB.NET / C# libraries - no code change.
+  * The Windows service - installs and runs exactly as today.
+  * In-memory / session state and long-running requests (e.g. multi-minute
+    workflows) - keep working; no platform request timeout as there would be
+    on App Service.
+  * Any COM / GDI / PDF / imaging libraries and local file access - all fine.
+  * Cross-database SQL with multi-part names - works, as long as the databases
+    land together on one SQL Server (or one Managed Instance).
+
+So the app itself is mostly a REDEPLOY + RE-POINT-CONFIG exercise. The work is
+around it.
+
+
+==============================================================================
+ WHERE THE EFFORT ACTUALLY GOES
+==============================================================================
+
+AREA:   Data tier (the big one)
+  WORK: Move the many SQL databases to SQL Server on a VM (or Managed
+        Instance). Keep them on one instance so cross-database queries keep
+        working. Re-point connection strings and validate. The size and number
+        of databases is the main variable.
+  TIME: 3 - 10 days.
+
+AREA:   Testing
+  WORK: Functional pass, the long in-memory workflows, integration with the
+        external service, and one flow per database.
+  TIME: 3 - 7 days.
+
+AREA:   VM + IIS + deploy
+  WORK: Build the Windows Server VM, install IIS and prerequisites, deploy the
+        app, install the Windows service, set the OS time zone.
+  TIME: 2 - 4 days.
+
+AREA:   Networking
+  WORK: Virtual network, network security group rules, private connectivity to
+        SQL, DNS, TLS / certificate, and reachability to the external service.
+  TIME: 2 - 4 days.
+
+AREA:   External service call
+  WORK: Confirm outbound reachability. If the third party allowlists source
+        IPs, register the VM's new Azure / NAT IP (coordinate with them - this
+        is mostly wait time).
+  TIME: 0.5 - 2 days.
+
+AREA:   Emails from pages
+  WORK: Gotcha even on a VM: Azure blocks outbound port 25 by default. If pages
+        send direct SMTP on port 25, switch to an authenticated relay on 587
+        (Microsoft 365, SendGrid, Azure Communication Services, or an internal
+        relay). If an internal relay is already used, near-zero.
+  TIME: 0.5 - 1 day.
+
+AREA:   Secrets / config
+  WORK: Connection strings and the external-service endpoint into config
+        (optionally Azure Key Vault).
+  TIME: 0.5 - 1 day.
+
+AREA:   Cutover
+  WORK: Final database sync, DNS switch, freeze window, rollback plan.
+  TIME: 1 - 3 days.
+
+
+==============================================================================
+ ROUGH TOTAL
+==============================================================================
+For ONE environment, a small team doing a genuine lift-and-shift:
+about 3 - 6 WEEKS elapsed, dominated by the data-tier move and testing.
+The code effort itself is close to zero - mostly connection strings, the SMTP
+relay, and the external-service endpoint / firewall.
+
+
+==============================================================================
+ TWO HONEST CAVEATS
+==============================================================================
+  1. Low migration effort is NOT low ongoing cost. The VM keeps ALL the
+     operational burden - OS patching, IIS, certificates, backups, and
+     single-VM availability unless you build redundancy yourself. You trade a
+     cheap move now for continued operations forever. (App Service / PaaS flips
+     that, at the cost of code changes for long requests and the Windows
+     service.)
+  2. The two real "even-on-a-VM" surprises are the outbound PORT 25 email block
+     and the external service's SOURCE-IP allowlist. Both are small, but both
+     will silently fail in production if missed - put them on the test
+     checklist explicitly.
+
+
+==============================================================================
+ AUTHENTICATION: does App Service allow SQL-backed Forms Authentication?
+==============================================================================
+Short answer: YES.
+
+Forms Authentication is an APPLICATION-level feature (part of ASP.NET /
+System.Web). It runs inside your app, on the .NET Framework runtime. Azure App
+Service (Windows) runs .NET Framework 4.8 apps in full trust under IIS, so
+Forms Authentication runs exactly the same as on your own server. Validating
+credentials against a SQL Server user table is just a database call - the
+hosting model does not care where you check the password. The old ASP.NET
+membership schema (aspnet_regsql / SqlMembershipProvider) also works against
+Azure SQL or SQL on a VM.
+
+  ON A VM:          Forms Authentication with a SQL user store works with NO
+                    changes. You control the machine; on a single VM the
+                    machine key is stable, so the auth cookie stays valid.
+
+  ON APP SERVICE:   It also works - but there is ONE required change:
+
+     >> Pin an explicit <machineKey> in web.config. <<
+
+     Why: Forms Authentication encrypts and signs its auth cookie (the "forms
+     auth ticket") using the machine key. On App Service the worker process
+     recycles, deployment slots swap, and - if you scale out - there are
+     several instances, each with its OWN auto-generated key. A key that
+     rotates or differs per instance makes existing auth cookies invalid, so
+     users get logged out or bounced between instances. A single fixed
+     <machineKey> (explicit validationKey / decryptionKey) in web.config fixes
+     all of that. While the app runs on one instance, also turn on ARR
+     affinity (session stickiness).
+
+Conclusion: SQL-backed Forms Authentication is NOT a blocker for App Service.
+On a VM it needs nothing; on App Service it needs one config line (the pinned
+machine key). Either way the user database and the login code are unchanged.
+
+------------------------------------------------------------------------------
+Companion to the .NET Framework -> Azure migration guide.
+==============================================================================
