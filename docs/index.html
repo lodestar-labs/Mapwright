@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lodestar Labs — Engineering Documentation</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bg:#fafafc; --card:#fff; --code:#f4f4f8; --codeink:#22223a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bg:#14141c; --card:#1c1c26; --code:#20202c; --codeink:#dcdce8; } }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1000px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  h1 { font-size: 2rem; margin: 0 0 .2rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .3rem; }
+  .sub { color: var(--mut); margin: 0 0 1rem; font-size: 1.02rem; }
+  .sec-sub { color: var(--mut); margin: 0 0 1rem; font-size: .92rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: .9rem; }
+  a.card { display: block; border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+    padding: 1rem 1.1rem; text-decoration: none; color: var(--ink); transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: var(--acc); transform: translateY(-2px); }
+  a.card h3 { margin: 0 0 .3rem; font-size: 1.02rem; color: var(--acc); }
+  a.card p { margin: 0; font-size: .87rem; color: var(--mut); }
+  .tag { display: inline-block; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 20px;
+    margin: 0 .3rem .5rem 0; letter-spacing: .03em;
+    background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); }
+  .tag.eng { background: color-mix(in srgb, var(--acc2) 18%, transparent); color: var(--acc2); }
+  .tag.mgr { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .tag.script { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  code { background: var(--code); color: var(--codeink); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; font-family: Consolas, monospace; }
+  footer { margin-top: 3.5rem; color: var(--mut); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  footer a { color: var(--acc); }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Lodestar Labs — Engineering Documentation</h1>
+<p class="sub">Guides, runbooks, migration tooling and management reports published from the
+<a href="https://github.com/lodestar-labs/Mapwright" style="color:var(--acc)">Mapwright</a> repository.</p>
+
+<h2>Mapwright &amp; leaving AutoMapper</h2>
+<p class="sec-sub">The compile-time object mapper for .NET, and why/how to move off runtime-configured mapping.</p>
+<div class="grid">
+  <a class="card" href="automapper-and-mapwright-explained.html">
+    <span class="tag eng">DEVELOPERS</span>
+    <h3>AutoMapper &amp; Mapwright, explained</h3>
+    <p>What runtime mapping actually does, what a source generator does instead, and why the difference matters.</p>
+  </a>
+  <a class="card" href="automapper-vs-mapwright.html">
+    <span class="tag eng">DEVELOPERS</span>
+    <h3>AutoMapper vs Mapwright</h3>
+    <p>Side-by-side comparison: configuration, validation, performance, debugging, licensing.</p>
+  </a>
+  <a class="card" href="replacing-automapper.html">
+    <span class="tag eng">DEVELOPERS</span>
+    <h3>Replacing AutoMapper</h3>
+    <p>The general migration guide: mapping construct by construct, with the gotchas.</p>
+  </a>
+</div>
+
+<h2>Case study: RecoApi → .NET 10</h2>
+<p class="sec-sub">A complete migration of a plugin-architecture service (host + subscriber/filter modules) from
+.NET 6 to .NET 10, including the mandatory AutoMapper replacement — runbooks, validated tooling, a developer
+briefing and management reports.</p>
+<div class="grid">
+  <a class="card" href="recoapi-net10-upgrade-junior-guide.html">
+    <span class="tag eng">RUNBOOK</span>
+    <h3>Combined upgrade runbook</h3>
+    <p>Host + modules, step by step for a junior engineer: the script, the EmailSink rewrite, Part B, tests, troubleshooting.</p>
+  </a>
+  <a class="card" href="RecoApiModules-net10-upgrade-guide.html">
+    <span class="tag eng">RUNBOOK</span>
+    <h3>Modules-only upgrade runbook</h3>
+    <p>Upgrading the module fleet against an already-migrated host — lockstep rules, per-module recipe, scaling to hundreds.</p>
+  </a>
+  <a class="card" href="recoapi-net10-key-challenges.html">
+    <span class="tag eng">BRIEFING</span>
+    <h3>The key challenges, explained</h3>
+    <p>Developer-to-developer: the eight things that actually made this migration hard, with evidence and takeaways.</p>
+  </a>
+  <a class="card" href="recoapi-net10-migration-effort-report.html">
+    <span class="tag mgr">MANAGEMENT</span>
+    <h3>Effort report — combined migration</h3>
+    <p>For technical managers: effort actuals vs projections, quality evidence, risks, decisions requested.</p>
+  </a>
+  <a class="card" href="recoapi-modules-migration-effort-report.html">
+    <span class="tag mgr">MANAGEMENT</span>
+    <h3>Effort report — module fleet rollout</h3>
+    <p>Per-module effort model, staffing scenarios for fleets of 50–300 modules, and the one-restart-window constraint.</p>
+  </a>
+  <a class="card" href="Migrate-RecoApi.ps1">
+    <span class="tag script">POWERSHELL</span>
+    <h3><code>Migrate-RecoApi.ps1</code></h3>
+    <p>Combined host+modules migration script: dry-run default, backups, rollback, build gate. Validated byte-for-byte.</p>
+  </a>
+  <a class="card" href="Migrate-RecoApiModules.ps1">
+    <span class="tag script">POWERSHELL</span>
+    <h3><code>Migrate-RecoApiModules.ps1</code></h3>
+    <p>Modules-only script: lockstep guard, host-derived version map, batch filter, per-module build ledger.</p>
+  </a>
+</div>
+
+<h2>Cloud migration</h2>
+<p class="sec-sub">Moving legacy .NET Framework estates to Azure.</p>
+<div class="grid">
+  <a class="card" href="net-framework-webforms-azure-migration.html">
+    <span class="tag eng">GUIDE</span>
+    <h3>A 20-year-old WebForms platform → Azure</h3>
+    <p>Decision-oriented guide: VM vs App Service (± FaaS), the SQL Managed Instance argument, phased plan, inventory scripts.</p>
+  </a>
+</div>
+
+<footer>
+  Published via GitHub Pages from <a href="https://github.com/lodestar-labs/Mapwright/tree/main/docs">lodestar-labs/Mapwright · docs/</a>.
+</footer>
+
+</main>
+</body>
+</html>
