@@ -1,0 +1,103 @@
+==============================================================================
+ FINDING WHICH PACKAGE VERSIONS RUN ON .NET 10
+ How to pick NuGet package versions when retargeting to .NET 10
+==============================================================================
+
+There are three ways to find the right version, plus one caveat that matters.
+
+
+==============================================================================
+ METHOD 1 - LET THE TOOLING TELL YOU (fastest; do this after retargeting)
+==============================================================================
+Once a project targets net10.0, NuGet resolves packages against that target.
+Run these from the project or solution folder:
+
+  dotnet list package --outdated
+      Shows current version vs the latest version compatible with your target
+      framework. Because the project is now net10.0, the "Latest" column IS the
+      newest version that works on .NET 10. This is the main command.
+
+  dotnet list package --vulnerable
+      Shows packages with known security advisories. (This is how the AutoMapper
+      advisory showed up in the migration.)
+
+  dotnet list package --deprecated
+      Shows deprecated packages.
+
+  dotnet list package --include-transitive
+      Add this to also see indirect (transitive) dependencies.
+
+Newer .NET CLI also has:
+  dotnet package search <name>
+      Look up a package and its versions.
+
+
+==============================================================================
+ METHOD 2 - CHECK ONE PACKAGE ON NUGET.ORG
+==============================================================================
+On the package page at nuget.org, pick a version and open the "Frameworks" tab.
+NuGet lists which target frameworks that version supports and shows whether it
+is compatible with net10.0.
+
+Use this to find the exact version that first added .NET 10 support (for example
+Swashbuckle, the Serilog sinks, NUnit).
+
+Note: a package does NOT have to target net10.0 directly. If it targets
+netstandard2.0, netstandard2.1, or net8.0, then .NET 10 can use it. NuGet marks
+it compatible automatically.
+
+
+==============================================================================
+ METHOD 3 - MICROSOFT PACKAGES FOLLOW THE .NET VERSION
+==============================================================================
+For Microsoft's own packages, the version follows the .NET major number. For
+.NET 10, use the 10.0.x line:
+
+  Microsoft.EntityFrameworkCore*   -> 10.0.x
+  Microsoft.Extensions.*           -> 10.0.x
+  ASP.NET Core packages            -> 10.0.x
+
+This rule covers most of the packages. Third-party packages (Serilog,
+Swashbuckle, NUnit, Newtonsoft, Moq) you check with Method 1 or Method 2.
+
+
+==============================================================================
+ METHOD 4 - GROUND TRUTH: RESTORE AND BUILD
+==============================================================================
+Restore and build is the final check. If a pinned version cannot run on
+net10.0, you get a clear error:
+
+  NU1202   The package version is not compatible with net10.0.
+  NU1102   No compatible version found.
+  NU1605   A version downgrade was detected (usually a host/module mismatch).
+
+So even without checking up front: retarget, build, and fix what NuGet reports.
+
+
+==============================================================================
+ CAVEAT (IMPORTANT): "COMPATIBLE" IS NOT "WORKS AT RUNTIME"
+==============================================================================
+NuGet "compatible" means the package will RESTORE and BUILD. It does NOT mean
+the package works correctly when it runs.
+
+Example from this migration: AutoMapper 11 targets netstandard2.1, so NuGet
+reports it as compatible with net10.0. Restore succeeds. The build is green.
+"dotnet list package" does NOT flag it. But it CRASHES the first time it maps on
+.NET 10.
+
+The tooling only reasons about the target-framework graph, not runtime
+behaviour. So a "compatible" package can still fail at run time.
+
+
+==============================================================================
+ THE WORKFLOW
+==============================================================================
+  1. Retarget the project to net10.0.
+  2. Use "dotnet list package --outdated" (and nuget.org, and the 10.0.x rule)
+     to pick versions and get a green build.
+  3. Use "dotnet list package --vulnerable" to catch known-bad versions.
+  4. RUN the app against the dev database. The tooling cannot tell you a
+     compatible package will actually work at run time. This step is not
+     optional.
+
+==============================================================================
