@@ -1,0 +1,164 @@
+==============================================================================
+ UPGRADING THE HOST APP FROM .NET 6 TO .NET 10
+ Issues, how to solve them, and developer time
+==============================================================================
+
+CONTEXT (read first)
+--------------------
+The host is the main web service that loads the modules. It must be migrated
+FIRST: the modules are rebuilt against the migrated host and depend on it.
+
+The work is two parts:
+  * Part A - retarget the projects and update the libraries.
+  * Part B - replace AutoMapper, which crashes on .NET 10.
+
+Most of the breakage is the ecosystem (NuGet packages) moving several versions
+at once, not your own code. Times are for one developer. The final runtime
+checks need the dev SQL Server.
+
+
+==============================================================================
+ HOST APP ISSUES
+==============================================================================
+
+1) ISSUE:     All host projects target .NET 6, but must run on .NET 10.
+   SOLUTION:  Retarget every project to .NET 10.
+   DEVELOPER: Change the target framework from net6.0 to net10.0 in each host
+              project file (about 11 projects).
+   TIME:      ~15-20 minutes.
+
+2) ISSUE:     The NuGet packages are several major versions behind (Entity
+              Framework 6->10, Microsoft.Extensions 6->10, the Serilog logging
+              stack, Swagger/Swashbuckle, the test packages, JSON).
+   SOLUTION:  Update every package to a .NET 10-compatible version, and keep
+              them identical to what the modules will use (host and modules
+              share one process and must agree).
+   DEVELOPER: Update each package reference across the projects to the new
+              versions.
+   TIME:      ~30-45 minutes.
+
+3) ISSUE:     The custom email log sink does not compile. The new version of the
+              Serilog email sink removed the old connection-info type (it moved
+              to a different mail library). This is the ONLY compile error in
+              the whole host.
+   SOLUTION:  Rewrite the sink's internals against the new options type, keeping
+              the setting names in appsettings identical so no config files have
+              to change.
+   DEVELOPER: Rewrite the two email-sink files to build the new options object
+              (map SSL on/off, the subject, and the credentials) and register
+              it; leave appsettings untouched.
+   TIME:      ~2-4 hours.
+
+4) ISSUE:     One Swagger namespace was renamed. The new Swashbuckle uses a
+              reorganised OpenApi library, so one "using" line no longer
+              resolves.
+   SOLUTION:  Fix the using directive.
+   DEVELOPER: Change "using Microsoft.OpenApi.Models;" to
+              "using Microsoft.OpenApi;" in Startup.
+   TIME:      ~2 minutes.
+
+5) ISSUE:     Database connections fail at runtime. The newer SQL client
+              encrypts connections by default, so a dev SQL Server without a
+              trusted certificate is refused - and this only shows at the first
+              database call, NOT at build time.
+   SOLUTION:  Allow the dev server's certificate in the connection string.
+   DEVELOPER: Add "TrustServerCertificate=True" to each connection string in
+              appsettings (remove it later if the server gets a trusted
+              certificate).
+   TIME:      ~5 minutes.
+
+6) ISSUE:     AutoMapper crashes at runtime on .NET 10. The host's data mapping
+              (AutoMapper) builds fine but throws the first time it runs. It
+              also has a security advisory and its fixed versions are no longer
+              free. THIS IS THE MAIN JOB.
+   SOLUTION:  Replace AutoMapper with compile-time generated mapping (Mapperly),
+              behind a small internal mapper interface so the calling code
+              barely changes.
+   DEVELOPER: Create the small mapper interface and registry in the shared
+              project; convert the host's mappings (about 8 record types) into
+              Mapperly classes - every "ignore this field" becomes an attribute.
+              Watch the clone trap: a same-type copy returns the SAME object,
+              not a copy - use "new object, then copy into it". Switch the
+              mapper type in the few places that use it (repository, repository
+              factory, action processor). The map call sites stay the same.
+   TIME:      about 2 days (the interface/registry plus the host mappings).
+
+7) ISSUE:     The module folders were set to an absolute path from the original
+              dev machine, and the plugin loader rejects relative paths - so you
+              cannot simply make the path relative.
+   SOLUTION:  Put relative paths in appsettings and turn them into absolute
+              paths at one point inside the loader.
+   DEVELOPER: Change the module-folder settings to relative paths; in the module
+              loader, resolve the path against the app's base directory before
+              loading.
+   TIME:      ~15 minutes.
+
+8) ISSUE:     Pre-existing breakage hides upgrade errors. Before the upgrade,
+              some modules did not even build against the host because a host
+              model had lost a marker interface. Migrating on top of that mixes
+              old errors with new ones.
+   SOLUTION:  Fix the drift first, get a clean .NET 6 build, THEN start the
+              upgrade.
+   DEVELOPER: Add the missing interface to the host model (the same one its
+              sibling models have), confirm the whole solution builds on .NET 6,
+              then begin retargeting.
+   TIME:      ~15-30 minutes.
+
+9) ISSUE:     A green build does not prove it runs. The AutoMapper crash and the
+              encryption failure only appear at runtime, and the service opens
+              the database at startup - so it cannot be fully verified without
+              the dev SQL Server.
+   SOLUTION:  Run the service on a machine that can reach the dev database and
+              check the real behaviour.
+   DEVELOPER: Start the service; confirm Swagger answers, all modules load, one
+              end-to-end flow per module works, an error email is sent, and the
+              queue tests pass.
+   TIME:      ~1-2 days (needs the dev database).
+
+   NOTE ON TESTS: the unit tests use NUnit, which had a major version bump
+   (3->4) that renamed some asserts. The existing tests already used the
+   new-style asserts, so no changes were needed - but check yours before
+   assuming.
+
+   ---------------------------------------------------------------------------
+   ROUGH TOTAL FOR THE HOST: about 1 week of focused work for one developer,
+   plus 1-2 days of database-connected verification. The module fleet is
+   separate (see the modules file).
+   ---------------------------------------------------------------------------
+
+
+==============================================================================
+ APPLIES TO THE WHOLE UPGRADE
+==============================================================================
+
+  * Do the host first. Modules are rebuilt against the migrated host and
+    cannot go before it.
+  * Keep the two parts as separate changes - first the retarget and library
+    update, then the AutoMapper replacement - so any regression is easy to
+    trace.
+  * Host and modules deploy together in one restart window.
+
+
+==============================================================================
+ OPTIONAL - NICE TO HAVE IF EXTRA TIME IS AVAILABLE
+==============================================================================
+(Not needed to finish the upgrade. These pay off later.)
+
+  * Switch SQL logins to Entra ID (Azure AD) authentication instead of
+    passwords in the connection string.
+    Time: ~1 day.
+  * Central package-version file so host and modules can never drift apart.
+    Time: ~half a day.
+  * Add health checks and structured startup logging (which modules loaded, is
+    the database reachable).
+    Time: ~half a day.
+  * Turn on nullable reference types and a newer C# version across the host for
+    extra compile-time safety.
+    Time: small per project.
+  * Later (NOT during the migration - avoid mixing changes): consider replacing
+    the older data-access patterns or moving off Newtonsoft JSON.
+    Time: ongoing.
+
+------------------------------------------------------------------------------
+Plain-text companion to the host upgrade runbook and effort report.
+==============================================================================
