@@ -1,0 +1,178 @@
+==============================================================================
+ UPGRADING THE MODULES FROM .NET 6 TO .NET 10
+ Issues, how to solve them, and developer time
+==============================================================================
+
+THE ONE RULE (read first)
+-------------------------
+The host loads every module into its own process, so the host and all its
+modules share the same loaded libraries. Two things follow:
+
+  * Same versions everywhere - a module must use the exact same shared-library
+    versions as the host, or it loads and then crashes.
+  * Everyone moves together - the host and every module go to .NET 10 in one
+    deployment. A module left behind builds fine, then takes the service down.
+
+There are two kinds of module. Subscribers do data mapping and carry the most
+work; filters are lighter. Times are per module, for a developer who has
+already done one (the first of each type takes longer).
+
+
+==============================================================================
+ SUBSCRIBER MODULES  (pull data, map it onto DB records, save it)
+==============================================================================
+
+1) ISSUE:     The module targets .NET 6, but must run on .NET 10 to load into
+              the upgraded host.
+   SOLUTION:  Retarget the project to .NET 10.
+   DEVELOPER: Open the subscriber's project file and change the target
+              framework from net6.0 to net10.0.
+   TIME:      ~5 minutes.
+
+2) ISSUE:     The module's shared library versions (Entity Framework, logging,
+              JSON, etc.) differ from the host's. Because host and module share
+              one process, any mismatch makes the module load and then crash
+              with type errors.
+   SOLUTION:  Set every shared package in the module to the exact same version
+              the host now uses.
+   DEVELOPER: Open the host's project files, note the new package versions, and
+              update each matching package reference in the module to match.
+   TIME:      ~15-20 minutes.
+
+3) ISSUE:     The references to the host's DLLs have the framework folder baked
+              into the path (...\net6.0\...). After retargeting, the module
+              would silently keep pointing at last year's .NET 6 host build.
+   SOLUTION:  Make those reference paths framework-neutral so they follow
+              whatever framework is being built.
+   DEVELOPER: In the project file, replace the "net6.0" part of each host-DLL
+              reference path with the build variables
+              $(Configuration)\$(TargetFramework).
+   TIME:      ~10 minutes.
+
+4) ISSUE:     AutoMapper (used to copy incoming data onto DB records) builds
+              fine but CRASHES the first time it runs on .NET 10. It also has a
+              security advisory and its fixed versions are no longer free.
+              THIS IS THE MAIN JOB.
+   SOLUTION:  Replace AutoMapper with compile-time generated mapping (Mapperly).
+   DEVELOPER: For each mapping: create a Mapperly mapper class, turn every
+              "ignore this field" rule into a [MapperIgnoreTarget] attribute and
+              every renamed field into a [MapProperty] attribute, register the
+              generated copy methods, and delete the old AutoMapper config. The
+              compiler now checks that nothing was missed.
+   TIME:      0.5-2 hours per subscriber; the FIRST one about 1 day to work out
+              the pattern.
+
+5) ISSUE:     The "clone" trap - the new mapper, if asked to copy an object to
+              the same type, hands back the SAME object instead of a real copy.
+              If a subscriber snapshots the old values before an update, this
+              silently breaks change detection (no error, wrong result).
+   SOLUTION:  Never use a same-type map for copying; make a new object and copy
+              the values into it.
+   DEVELOPER: Find any clone or same-type copy in the module and replace it with
+              the "new object, then copy into it" pattern.
+   TIME:      ~15 minutes for a subscriber that clones records; none otherwise.
+
+6) ISSUE:     The subscriber code refers to AutoMapper's mapper type (IMapper),
+              which no longer exists once AutoMapper is removed.
+   SOLUTION:  Point the code at the replacement mapper interface.
+   DEVELOPER: Change the using directive and the mapper type (IMapper to
+              IObjectMapper) in the subscriber classes. The actual map calls
+              stay exactly the same.
+   TIME:      ~10 minutes.
+
+7) ISSUE:     A successful build does NOT prove the module works - the crashes
+              above only appear at runtime.
+   SOLUTION:  Build it, deploy into the host, start the host, and confirm the
+              module loads and one real data flow is correct.
+   DEVELOPER: Build the subscriber, check its files land in the host's Modules
+              folder, run the host and watch it load the subscriber, then run
+              one pull-map-save and compare the saved values to the old system
+              (especially renamed fields).
+   TIME:      ~30-45 minutes (needs the dev database).
+
+   ---------------------------------------------------------------------------
+   ROUGH TOTAL PER SUBSCRIBER after the first: about 2-4 hours.
+   FIRST subscriber: about 1 day.
+   ---------------------------------------------------------------------------
+
+
+==============================================================================
+ FILTER MODULES  (lighter; normally no data mapping)
+==============================================================================
+
+1) ISSUE:     The filter targets .NET 6 and must run on .NET 10.
+   SOLUTION:  Retarget the project to .NET 10.
+   DEVELOPER: Change the target framework from net6.0 to net10.0 in the project
+              file.
+   TIME:      ~5 minutes.
+
+2) ISSUE:     The filter's shared library versions must match the host exactly,
+              or it loads and then crashes.
+   SOLUTION:  Set every shared package to the host's new versions.
+   DEVELOPER: Note the host's package versions and update the filter's package
+              references to match.
+   TIME:      ~15 minutes.
+
+3) ISSUE:     The host-DLL reference paths have the framework folder baked in
+              and would point at the old .NET 6 build after retargeting.
+   SOLUTION:  Make the reference paths framework-neutral.
+   DEVELOPER: Replace "net6.0" in each host-DLL reference path with the build
+              variables $(Configuration)\$(TargetFramework).
+   TIME:      ~10 minutes.
+
+4) ISSUE:     A green build is not proof the filter loads and behaves correctly
+              on .NET 10.
+   SOLUTION:  Build, deploy into the host, start it, and check the filter loads
+              and works as before.
+   DEVELOPER: Build the filter, confirm it deploys into the host's Modules
+              folder, run the host and confirm the filter loads and behaves the
+              same as before.
+   TIME:      ~20-30 minutes (needs the dev database if it touches data).
+
+   ---------------------------------------------------------------------------
+   ROUGH TOTAL PER FILTER: about 30-45 minutes. No data mapping means no
+   AutoMapper rewrite and no clone trap.
+   CAVEAT: if a filter DOES use AutoMapper, treat that part like a subscriber
+   and add the 0.5-2 hours for the mapping rewrite.
+   ---------------------------------------------------------------------------
+
+
+==============================================================================
+ APPLIES TO EVERY MODULE
+==============================================================================
+
+  * Ship together - all migrated modules deploy with the host in one restart
+    window. Letting any module lag is the one thing that breaks the whole
+    service.
+  * Fix old breakage first - if a module did not even build against the current
+    host before the upgrade started, fix that as a separate change first,
+    otherwise you will chase errors that were already there and blame the
+    upgrade.
+
+
+==============================================================================
+ OPTIONAL - NICE TO HAVE IF EXTRA TIME IS AVAILABLE
+==============================================================================
+(Not needed to finish the upgrade. These pay off later.)
+
+  * Delete the dead mapping code (old mapper-factory files, unused maps).
+    Time: ~10 min per module.
+  * Add a small parity test per subscriber - map an object the old way and the
+    new way and compare, so future edits stay safe.
+    Time: ~1-2 hours once, then reusable.
+  * Centralise package versions in one shared file so host and modules can
+    never drift apart again.
+    Time: ~half a day, once.
+  * Add a startup self-check - host logs every module it loaded and fails fast
+    if one is missing or incompatible, instead of dying mid-request.
+    Time: ~half a day.
+  * Automate the "does it load" check as an automated test so a bad module is
+    caught before deployment.
+    Time: ~1 day.
+  * Turn on nullable reference types and a newer C# version for extra
+    compile-time safety while every project is being touched anyway.
+    Time: small per module.
+
+------------------------------------------------------------------------------
+Plain-text companion to the module upgrade runbook and effort report.
+==============================================================================
