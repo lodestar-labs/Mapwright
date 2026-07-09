@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecoApi → .NET 10 — The Key Challenges, Explained for Developers</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8;
+    --codeink:#22223a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26;
+      --code:#20202c; --codeink:#dcdce8; } }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.42rem; margin: 3rem 0 .7rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; scroll-margin-top: 1rem; }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1.02rem; }
+  p, li { font-size: .96rem; }
+  a { color: var(--acc); }
+  table { border-collapse: collapse; width: 100%; margin: .9rem 0 1.3rem; font-size: .89rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .12rem .38rem; border-radius: 4px; font-size: .88em; font-family: "Cascadia Code", Consolas, monospace; }
+  pre { background: var(--code); color: var(--codeink); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .83rem; line-height: 1.5; font-family: "Cascadia Code", Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  .challenge { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 1.1rem 1.3rem; margin: 1.4rem 0; }
+  .challenge h3 { margin: 0 0 .2rem; font-size: 1.15rem; }
+  .challenge .meta { color: var(--mut); font-size: .85rem; margin-bottom: .7rem; }
+  .challenge h4 { font-size: .95rem; margin: 1rem 0 .25rem; color: var(--acc2); text-transform: uppercase; letter-spacing: .04em; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; margin-right: .3rem; vertical-align: middle; letter-spacing: .03em;
+         background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); }
+  .tag.bad  { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.warn { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .tag.ok   { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.info { background: color-mix(in srgb, var(--acc2) 18%, transparent); color: var(--acc2); }
+  .muted { color: var(--mut); font-size: .88rem; }
+  .del { color: var(--bad); } .add { color: var(--ok); }
+  .takeaway { border-left: 4px solid var(--ok); background: color-mix(in srgb, var(--ok) 6%, transparent); border-radius: 6px; padding: .6rem .9rem; margin-top: .8rem; font-size: .93rem; }
+  .takeaway b:first-child { color: var(--ok); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>RecoApi → .NET 10: The Key Challenges</h1>
+<p class="sub">A developer-to-developer walkthrough of what actually made this migration hard — host + modules
+combined, and the modules-only variant. Not a runbook (those exist separately): this is the <i>why</i> behind each
+decision, with the evidence, for anyone facing a similar .NET 6 → 10 upgrade of a plugin-architecture system.</p>
+
+<h2>The system in one paragraph</h2>
+<p>RecoApi is a .NET web service (Generic Host + Startup, controllers, Swagger, Serilog, EF Core over SQL Server,
+a persistent queue) whose business capabilities live in <b>plugin modules</b> — subscriber and filter DLLs the host
+discovers at runtime with <code>Assembly.LoadFile</code> from <code>Modules\</code> folders. Modules live in a second
+repository, reference the host's DLLs by <code>HintPath</code>, and build directly into the host's module folders.
+Everything ran on .NET 6 with AutoMapper 11 for entity mapping. The task: move host and modules to .NET 10 —
+behaviour-preserving, with a reviewable diff.</p>
+
+<h2>Challenge ranking — what will bite you first</h2>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Challenge</th><th>Class</th><th>If you ignore it</th></tr>
+<tr><td>1</td><td>AutoMapper 11 crashes at <i>runtime</i> on .NET 10 — builds stay green</td><td><span class="tag bad">RUNTIME BOMB</span></td><td>Service dies on first mapping, in production, after every test that stops at "it compiles" passed</td></tr>
+<tr><td>2</td><td>The plugin same-process rule &amp; framework-baked HintPaths</td><td><span class="tag bad">RUNTIME BOMB</span></td><td>Modules silently build against stale net6 host DLLs; TypeLoad/MissingMethod at load or mid-request</td></tr>
+<tr><td>3</td><td>Clone semantics under a source-generated mapper</td><td><span class="tag bad">SILENT CORRUPTION</span></td><td>Old/new comparisons always equal; updates stop being detected — no exception, wrong data</td></tr>
+<tr><td>4</td><td>Pre-existing drift mixed into upgrade errors</td><td><span class="tag warn">DIAGNOSIS FOG</span></td><td>You debug "upgrade failures" that existed before you started</td></tr>
+<tr><td>5</td><td>Ecosystem major-version jumps (Serilog Email sink, OpenApi, SqlClient encryption, NUnit)</td><td><span class="tag warn">BREAKING API</span></td><td>One compile error, one config-shape change, one first-DB-call SSL failure</td></tr>
+<tr><td>6</td><td>Environment coupling (absolute paths + <code>Assembly.LoadFile</code>'s absolute-path rule)</td><td><span class="tag warn">PORTABILITY</span></td><td>Runs only on the original dev machine's disk layout</td></tr>
+<tr><td>7</td><td>Scale &amp; repeatability (hundreds of subscribers, lockstep cutover)</td><td><span class="tag info">PROCESS</span></td><td>Hand-edited csprojs drift; the one module someone missed takes the service down</td></tr>
+<tr><td>8</td><td>Tooling that lies: writing reliable migration automation on Windows PowerShell 5.1</td><td><span class="tag info">META</span></td><td>Your "resilient" script crashes in CI on a stderr line, or silently scans the wrong files</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2>The challenges, one by one</h2>
+
+<div class="challenge">
+<h3>1. Green build ≠ working system: the AutoMapper time bomb</h3>
+<p class="meta">Applies to: combined &amp; modules-only · Detected by: a parity harness, not by any build</p>
+<h4>What made it hard</h4>
+<p>Retargeting all 15 projects to net10.0 compiled almost immediately. Nothing in the build hinted that
+<b>AutoMapper 11.0.1 cannot even construct its configuration on .NET 10</b>. Its config scanner reflects over LINQ's
+internal method table and calls <code>MakeGenericMethod</code> with mapped entity types; newer runtimes added internal
+overloads with struct constraints (<code>Enumerable.MaxInteger&lt;T&gt;</code>), and the reflection call now throws:</p>
+<pre><code>System.TypeInitializationException
+ ---&gt; System.Security.VerificationException: Method System.Linq.Enumerable.MaxInteger:
+      type argument 'DatedRecord' violates the constraint of type parameter 'T'.</code></pre>
+<p>Worse: the standard smoke test (start the service) never reached it, because SQL Server connects during startup
+— the crash hides behind an unrelated infrastructure dependency. Compounding factors: the pinned version carries a
+high-severity advisory (GHSA-rvv3-g6hj-g44x, flagged by NuGet audit on every build), and fixed versions moved to a
+commercial licence. Upgrade wasn't a fix; replacement was.</p>
+<h4>How it was resolved</h4>
+<p>Replace AutoMapper with <b>Mapperly</b> (Riok.Mapperly, Apache-2.0), a compile-time source generator — but as a
+<b>separate branch/commit after</b> the retarget, never mixed into it. Every <code>ForMember(...Ignore())</code>
+became one <code>[MapperIgnoreTarget]</code>; <code>CaseInsensitive</code> matching and
+<code>RequiredMappingStrategy.Target</code> reproduced AutoMapper's name-matching and its
+<code>AssertConfigurationIsValid()</code> — but enforced by the compiler on every build. A small seam
+(<code>IObjectMapper</code> + <code>ObjectMapperRegistry</code> in the Domain assembly) bridged generic consumers to the
+generated typed methods, so call sites (<code>_mapper.Map(src, dst)</code>) didn't change.</p>
+<h4>Evidence</h4>
+<p>A parity harness mapped fully-populated objects through the <i>original</i> AutoMapper configuration (reference:
+12.0.1, the last freely-usable version that initialises on net10) and the Mapperly replacement:
+<b>236/236 property comparisons identical</b> across 8 entities × 4 map shapes. The same harness is what exposed the
+crash itself — and challenge #3.</p>
+<div class="takeaway"><b>Takeaway:</b> after a framework jump, budget a <i>runtime</i> proof for every
+reflection-heavy library (mappers, IoC containers, serializers, mocking). "It builds" tells you nothing about them.
+And when a library is simultaneously broken, vulnerable and re-licensed — replace, don't chase versions.</div>
+</div>
+
+<div class="challenge">
+<h3>2. One process, two repositories: the same-process rule</h3>
+<p class="meta">Applies to: combined &amp; modules-only (it's the reason "modules-only" is still lockstep)</p>
+<h4>What made it hard</h4>
+<p><code>Assembly.LoadFile</code> pulls every module into the host's process. Host and modules therefore share one
+resolved version of every common assembly — EF Core, <code>Microsoft.Extensions.*</code>, Newtonsoft, and the host's own
+DLLs. Two repositories, dozens (potentially hundreds) of csprojs, and <b>any</b> version disagreement compiles fine and
+fails only when the type actually crosses the boundary at runtime. The nastiest instance was latent in the HintPaths:</p>
+<pre><code><span class="del">- ..\RecoApi\...\bin\Debug\net6.0\RECO.API.Domain.dll   ← framework BAKED IN</span>
+<span class="add">+ ..\RecoApi\...\bin\$(Configuration)\$(TargetFramework)\RECO.API.Domain.dll</span></code></pre>
+<p>After a retarget, the old paths would <b>still resolve the stale net6 DLLs</b> sitting on disk — modules build
+green against last year's host and detonate at load time. The failure (TypeLoad/MissingMethod, or subtler behavioural
+drift) points nowhere near "your csproj has net6.0 hard-coded in a path".</p>
+<h4>How it was resolved</h4>
+<p>Three mechanisms, all enforced by automation rather than discipline: (1) HintPaths rewritten to
+<code>$(Configuration)\$(TargetFramework)</code> tokens so host and module <i>cannot</i> disagree again;
+(2) package versions aligned everywhere — and in the modules-only tooling the target versions are <b>derived from the
+host's own csproj files</b> at run time, making the host the single source of truth instead of a hard-coded table;
+(3) a <b>lockstep guard</b>: the modules migration refuses to run at all if any host project still targets the old
+TFM, because modules built against an unmigrated host are worse than no migration.</p>
+<h4>Evidence</h4>
+<p>Module loading was verified by a harness doing <code>Assembly.LoadFile</code> + full type resolution of every module
+against the net10 host binaries (44–66 types per module, providers found) — the strongest cheap proof that the
+process-sharing contract held.</p>
+<div class="takeaway"><b>Takeaway:</b> in any plugin architecture, treat "which versions may exist in the process" as
+a single system-wide invariant with a single source of truth — never as N independent csproj decisions. And grep
+your HintPaths for baked-in TFMs <i>before</i> a retarget, not after the first TypeLoadException.</div>
+</div>
+
+<div class="challenge">
+<h3>3. The identity clone: when the generated code is correct and your assumption isn't</h3>
+<p class="meta">Applies to: combined &amp; modules-only (any module with a same-type map) · Class: silent data corruption</p>
+<h4>What made it hard</h4>
+<p>The repository layer snapshots "old content" before updating a tracked entity, so it can compare old vs new.
+Under AutoMapper, a same-type map produced a copy. Mapperly, asked for the equivalent
+<code>TblSynonym Clone(TblSynonym source)</code>, generates — perfectly reasonably, from its point of view:</p>
+<pre><code>internal static partial Models.TblSynonym? Clone(Models.TblSynonym? source)
+{
+    return source == null ? default : source;   // ← the SAME reference, not a copy
+}</code></pre>
+<p>An aliased snapshot makes every old/new comparison silently equal. No exception, no log line — change detection
+just stops working. This is the most dangerous class of migration bug: <b>both libraries are behaving correctly</b>;
+only the semantic contract between them differs.</p>
+<h4>How it was resolved</h4>
+<p>Never declare same-type Mapperly maps for cloning. Clone = <b>new instance + the generated in-place copy</b>:</p>
+<pre><code>.Register&lt;Models.TblCode, Models.TblCode&gt;(source =&gt;
+    { var target = new Models.TblCode(); RecoMappings.CopyOnto(source, target); return target; })</code></pre>
+<p>Caught, again, by the empirical parity harness — specifically by comparing object <i>references</i>, not just
+values, for the clone shape.</p>
+<div class="takeaway"><b>Takeaway:</b> when swapping a library, enumerate the <i>semantic contracts</i> call sites rely
+on (copy vs reference, ordering, null handling, culture) and test those explicitly. Reading the generated code of a
+source generator is not paranoia; it's the whole point of using one.</div>
+</div>
+
+<div class="challenge">
+<h3>4. Drift before the first change: establish a green baseline or debug fog forever</h3>
+<p class="meta">Applies to: combined (and to any modules repo that lagged its host)</p>
+<h4>What made it hard</h4>
+<p>Before any framework was touched, two of the four modules <b>did not compile against the current host</b>: the
+host's <code>RelType</code> model had lost the <code>IDataRecordWithRelationships</code> marker interface that the
+modules' generic pipelines require (<code>CS0311</code>). Had the retarget started on top of that, every subsequent
+error would carry the question "upgrade breakage, or was it always broken?" — multiplied across every module.</p>
+<h4>How it was resolved</h4>
+<p>Repair drift first (a one-line interface declaration, matching every sibling model), record a <b>green net6
+baseline</b>, and only then retarget. In the two-repo world this generalises to a rule: the modules repo must compile
+against the host repo's current main <i>before</i> either starts migrating.</p>
+<div class="takeaway"><b>Takeaway:</b> a migration inherits every latent inconsistency and makes it look like its own
+fault. Spend the first day proving the pre-state is green — it's the cheapest debugging you'll ever buy.</div>
+</div>
+
+<div class="challenge">
+<h3>5. It's never the language — it's the ecosystem</h3>
+<p class="meta">Applies to: combined (host-side); modules feel it only as package alignment</p>
+<h4>What made it hard</h4>
+<p>.NET 6 → 10 spans four annual releases, yet <b>not one line of application logic needed rewriting for the runtime
+itself</b>. Everything that broke was the ecosystem moving several majors at once:</p>
+<div class="tblwrap"><table>
+<tr><th>Break</th><th>Shape</th><th>Cost</th></tr>
+<tr><td>Serilog.Sinks.Email 2.x → 4.x deleted <code>EmailConnectionInfo</code> (System.Net.Mail → MailKit)</td><td>The <b>only compile error in the whole host</b> — a custom email sink</td><td>Rewrite sink internals against <code>EmailSinkOptions</code>, keeping the appsettings contract byte-compatible (extension-method name + property names), incl. deliberate mapping decisions: <code>EnableSsl → SecureSocketOptions.Auto/None</code>, subject becomes a template formatter, credentials only when <code>UseDefaultCredentials=false</code></td></tr>
+<tr><td>SqlClient (via EF Core 7+) flipped <code>Encrypt</code> to true</td><td><b>Invisible at build time</b> — dies on the first DB call after upgrade</td><td><code>TrustServerCertificate=True</code> for dev servers without CA-trusted certs</td></tr>
+<tr><td>Swashbuckle 10 rides Microsoft.OpenApi 2.x, which flattened <code>.Models</code></td><td>One <code>using</code></td><td>Trivial — but only if you know to look</td></tr>
+<tr><td>NUnit 3 → 4 renamed classic asserts</td><td>Test compile</td><td>Zero here (tests already used 4-compatible asserts) — but audit before assuming</td></tr>
+<tr><td>NuGet now audits (NU1903) and prunes (NU1510) by default</td><td>New warnings on every build</td><td>Free security signal — it's what kept the AutoMapper advisory visible</td></tr>
+</table></div>
+<h4>How it was resolved</h4>
+<p>A package matrix decided <i>once</i> (host and modules identical — challenge #2), the sink rewritten behind an
+unchanged config contract, and everything else mechanical. The discipline that mattered: <b>pin the mapper during
+Part A</b> (no mapping churn while retargeting) and take the ecosystem hit in one reviewed sweep.</p>
+<div class="takeaway"><b>Takeaway:</b> inventory your <i>custom extensions of third-party libraries</i> (sinks,
+providers, formatters) first — that's where multi-major jumps land hardest. And treat "worked on net6, dies on first
+DB call" encryption defaults as a standing item on every SqlClient-era upgrade checklist.</div>
+</div>
+
+<div class="challenge">
+<h3>6. Environment coupling: absolute paths meet an API that demands them</h3>
+<p class="meta">Applies to: combined (host config); a portability win for every future dev machine</p>
+<h4>What made it hard</h4>
+<p>appsettings pointed the module folders at an absolute path from the original developer's machine
+(<code>C:\Work\...\Modules\Filters</code>). The naive fix — make them relative — <b>crashes</b>, because
+<code>Assembly.LoadFile</code> rejects relative paths outright. So the system was stuck: unportable config, and an
+API that punishes the obvious cure.</p>
+<h4>How it was resolved</h4>
+<p>Relative paths in config, resolved <b>once, at a defined anchor</b>, inside the loader:</p>
+<pre><code>// ModuleProviderLoader ctor
+_pathToModulesFolder = Path.GetFullPath(pathToModulesFolder, AppContext.BaseDirectory);</code></pre>
+<div class="takeaway"><b>Takeaway:</b> "make it relative" is only half a fix — the other half is choosing the anchor
+(<code>AppContext.BaseDirectory</code>, not the process CWD) and resolving at one choke point instead of at every
+consumer.</div>
+</div>
+
+<div class="challenge">
+<h3>7. Doing it four hundred times: scale, batching and the lockstep cutover</h3>
+<p class="meta">Applies to: modules-only, primarily — the reason it exists as a separate track</p>
+<h4>What made it hard</h4>
+<p>The reference repo has four modules; production reality is <b>hundreds of subscribers</b> owned by multiple people
+on different schedules. Hand-editing csprojs at that scale guarantees drift (one missed HintPath, one stale package
+pin), and the same-process rule (#2) turns any single miss into a service-down event at the shared restart. Meanwhile
+the AutoMapper conversion (#1) is per-module <i>human</i> work that cannot be big-banged.</p>
+<h4>How it was resolved</h4>
+<p>Split the work by <b>automatability</b>, not by module:</p>
+<ul>
+  <li><b>Part A (mechanical, scripted):</b> discovery-based tooling that sweeps every csproj — TFM, HintPath tokens,
+      versions derived from the host — idempotently, with dry-run default, per-file backups, rollback, a batching
+      filter (<code>-ModuleFilter 'RDBES.*'</code>), and a build gate that <b>collects failures instead of stopping</b>,
+      so one red module can't hide the state of the other 399.</li>
+  <li><b>Part B (intent-bearing, human):</b> the script only <i>inventories</i> it — a CSV of every
+      AutoMapper reference, which becomes the tracking sheet. One reference conversion first, then fan out;
+      identical subscriber shapes make repetition mechanical.</li>
+  <li><b>Cutover:</b> branches can be prepared over weeks, but host switch + all module deployments land in
+      <b>one restart window</b>. The lockstep guard makes the wrong order impossible to script by accident.</li>
+</ul>
+<div class="takeaway"><b>Takeaway:</b> at scale, the deliverable is not "migrated modules" — it's a <i>repeatable
+migration function</i> plus a worklist. Draw the automation boundary where intent begins: scripts transcribe facts;
+humans transcribe intent; and anything the script won't do it should still <i>detect and report</i>.</div>
+</div>
+
+<div class="challenge">
+<h3>8. The meta-challenge: migration tooling you can actually trust</h3>
+<p class="meta">Applies to: both tracks — anyone writing the automation · Platform: Windows PowerShell 5.1</p>
+<h4>What made it hard</h4>
+<p>The scripts themselves had to be resilient, and the platform fought back with failure modes that only appear at
+runtime, in specific environments:</p>
+<ul>
+  <li>Under <code>$ErrorActionPreference='Stop'</code>, PS 5.1 turns any <b>redirected native stderr line into a
+      terminating error</b> — including <code>git checkout</code> announcing <i>success</i> ("Switched to a new branch")
+      on stderr. The script worked in a console and crashed in CI.</li>
+  <li><code>Get-ChildItem -LiteralPath … -Recurse -Include '*.cs'</code> <b>silently ignores the -Include filter</b> —
+      the inventory scanned every file (including its own previous output CSV, self-amplifying the count 357 → 775)
+      until replaced with explicit extension checks.</li>
+  <li>StrictMode + PowerShell's array unrolling: a one-element result becomes a scalar with no <code>.Count</code>;
+      a single-line file from <code>Get-Content</code> ditto.</li>
+  <li>PS 5.1 parses BOM-less UTF-8 as ANSI — em-dashes in string literals decode to bytes that include a <b>curly
+      closing quote</b>, terminating strings mid-sentence with surreal parse errors. ASCII + BOM, always.</li>
+</ul>
+<h4>How it was resolved — and, more importantly, how it was <i>verified</i></h4>
+<p>Each pitfall got a structural fix (an EAP-relaxing wrapper for all native calls; extension filters; call-site
+<code>@()</code>; ASCII+BOM). But the real answer was the verification method: <b>reproduce the known-good result from
+scratch</b>. The scripts were run against disposable clones of the pre-migration state and their output diffed against
+the hand-migrated reference branch — <b>byte-identical csprojs</b>, then idempotency re-run (0 changes), rollback
+restore, the lockstep guard, and a full RED→fix→GREEN build-gate rehearsal that reproduced the exact failure cascade a
+real user would see (one EmailSink compile error → every module failing with <code>CS0246 'RECO'</code>) and its
+recovery.</p>
+<div class="takeaway"><b>Takeaway:</b> a migration script is a program that edits programs — test it like one. If a
+hand-verified reference migration exists, "re-derive it byte-for-byte from a clean checkout" is the strongest cheap
+test available, and rehearsing the <i>failure</i> path is what makes the runbook's troubleshooting section true
+rather than hopeful.</div>
+</div>
+
+<!-- ============================================================ -->
+<h2>What deliberately did <i>not</i> change</h2>
+<p>Half the craft was restraint. The architecture survived untouched — no rewrite to minimal APIs, no
+AssemblyLoadContext adventure, Newtonsoft kept, LINQ-era patterns kept: <code>Assembly.LoadFile</code> plugin loading,
+Generic Host + Startup bootstrapping, the controller surface, the persistent queue. Every deliberate change beyond
+the retarget lived on its own branch (<code>net10-upgrade</code> first, then <code>replace-automapper-mapperly</code>)
+so that any regression stays attributable to exactly one diff. The one honestly-open item was stated as such: full
+end-to-end runtime verification requires the dev SQL Server, which the migration machine could not reach — so it
+shipped as an explicit checklist for a DB-connected machine, not as a claim.</p>
+
+<h2>The one-slide summary</h2>
+<div class="tblwrap"><table>
+<tr><th>If you remember five things</th></tr>
+<tr><td>1. <b>Runtime-prove your reflection-heavy libraries</b> after a framework jump — green builds are silent about them.</td></tr>
+<tr><td>2. In a plugin system, <b>versions are one process-wide invariant</b> — tokenise HintPaths, derive module versions from the host, guard the lockstep.</td></tr>
+<tr><td>3. <b>Baseline before you migrate</b>; separate drift-fix, retarget, and library-replacement into attributable diffs.</td></tr>
+<tr><td>4. Draw the automation boundary at <b>intent</b>: script the mechanical sweep (idempotent, dry-run, rollback), inventory the human work, never auto-write what encodes business meaning.</td></tr>
+<tr><td>5. <b>Verify the tooling by reproducing the known-good result</b> — and rehearse the failure path so your troubleshooting table describes reality.</td></tr>
+</table></div>
+
+<hr>
+<p class="muted">Companion documents: the combined host+modules runbook, the modules-only runbook, and the two
+migration scripts (<code>Migrate-RecoApi.ps1</code>, <code>Migrate-RecoApiModules.ps1</code>). All quantitative claims
+in this deck — the 236/236 mapping parity, the module-load type counts, the byte-identical script reproduction, the
+RED→GREEN rehearsal, and each PowerShell 5.1 failure mode — were observed directly during the migration and its
+validation runs, and are reproducible from the branches.</p>
+
+</main>
+</body>
+</html>

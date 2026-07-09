@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecoApi Modules → .NET 10 — Effort Report for Technical Management</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8; --codeink:#22223a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26; --code:#20202c; --codeink:#dcdce8; } }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.8rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.35rem; margin: 2.6rem 0 .6rem; border-bottom: 2px solid var(--line); padding-bottom: .3rem; }
+  h3 { font-size: 1.08rem; margin: 1.6rem 0 .4rem; }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1rem; }
+  p, li { font-size: .95rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .89rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .1rem .35rem; border-radius: 4px; font-size: .88em; font-family: Consolas, monospace; }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); } .card.bad { border-left-color: var(--bad); }
+  .card h3 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; margin-right: .3rem;
+         background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); letter-spacing: .03em; }
+  .tag.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.warn { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .muted { color: var(--mut); font-size: .87rem; }
+  .kpi-row { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.2rem 0; }
+  .kpi { flex: 1 1 180px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: .8rem 1rem; }
+  .kpi .v { font-size: 1.5rem; font-weight: 700; color: var(--acc); }
+  .kpi .l { font-size: .8rem; color: var(--mut); }
+  .num { font-variant-numeric: tabular-nums; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>RecoApi Modules → .NET 10 (Fleet Rollout)</h1>
+<p class="sub">Effort report for technical management · upgrading the subscriber/filter module fleet against the
+already-migrated host · per-module effort model, staffing scenarios for a fleet of hundreds, coordination
+constraints, and decisions required.</p>
+
+<h2>1. Executive summary</h2>
+<div class="kpi-row">
+  <div class="kpi"><div class="v">≈ 0</div><div class="l">Marginal cost of the mechanical upgrade per module (scripted, batchable)</div></div>
+  <div class="kpi"><div class="v">0.5–2 h</div><div class="l">Human effort per module for the mapping-library conversion (after the first)</div></div>
+  <div class="kpi"><div class="v">1 window</div><div class="l">All modules + host must switch in one service-restart window (lockstep)</div></div>
+  <div class="kpi"><div class="v">Parallel</div><div class="l">Per-module work distributes cleanly across owners/teams</div></div>
+</div>
+<p><b>The shape of this project:</b> unlike the host migration (one deep, sequential effort), the module fleet is a
+<b>wide, shallow, parallelisable</b> work stream. The expensive thinking has already been done once on the reference
+modules; what remains per module is (a) a scripted sweep that costs minutes per hundred modules, and (b) a
+patterned, compiler-checked manual conversion of each module's data-mapping configuration, which distributes across
+as many developers as we choose to assign. The critical management constraint is not effort but <b>coordination</b>:
+because all modules load into the host's single process, the host switch and every module's rebuilt binaries must
+deploy in <b>one</b> restart window — modules cannot lag.</p>
+
+<h2>2. What is already in place (sunk investment this rollout reuses)</h2>
+<div class="tblwrap"><table>
+<tr><th>Asset</th><th>What it does for the fleet</th><th>State</th></tr>
+<tr><td><code>Migrate-RecoApiModules.ps1</code></td><td>Per-module mechanical upgrade: framework retarget, reference-path proofing, package versions <b>derived automatically from the host</b> (no per-module decisions). Batch filter for team-by-team processing; failures collected per module, not aborting the run; dry-run, backups, rollback; refuses to run against an unmigrated host (the "lockstep guard")</td><td><span class="tag ok">VALIDATED</span> — output byte-identical to the hand-migrated reference modules; build gate, idempotency and rollback all exercised</td></tr>
+<tr><td>Modules-only runbook</td><td>Step-by-step guide a junior engineer can follow per module, incl. real before/after code from converted subscribers and an 11-item troubleshooting table</td><td><span class="tag ok">READY</span></td></tr>
+<tr><td>Reference conversions</td><td>Three subscriber modules already fully converted (the pattern to copy); parity-testing approach that proved 236/236 identical mapping behaviour</td><td><span class="tag ok">MERGE-READY</span></td></tr>
+<tr><td>Inventory tooling</td><td>The script emits a CSV of every mapping-library usage per module — this is the rollout's tracking sheet and progress board</td><td><span class="tag ok">READY</span></td></tr>
+</table></div>
+
+<h2>3. Per-module effort model</h2>
+<p>Each module's work splits into a scripted part and a human part:</p>
+<div class="tblwrap"><table>
+<tr><th>Step</th><th>Who/what</th><th>Effort per module</th><th>Notes</th></tr>
+<tr><td>A. Mechanical upgrade (framework, references, packages)</td><td>Script</td><td class="num">~0 (minutes per batch of any size)</td><td>Idempotent; safe to sweep the whole repo on day one</td></tr>
+<tr><td>B. Mapping conversion (AutoMapper → compile-time mapper)</td><td>Developer</td><td class="num">0.5–2 h typical; up to 0.5 d for the largest map sets</td><td>Scales with the module's map count (the CSV gives this per module in advance). The compiler verifies completeness — a missed mapping is a named build error, not a runtime surprise</td></tr>
+<tr><td>C. Build + deploy-into-host + load check</td><td>Script gate + developer glance</td><td class="num">~10 min</td><td>Per-module OK/FAIL list from the gate</td></tr>
+<tr><td>D. One end-to-end flow check</td><td>Developer, DB-connected env</td><td class="num">15–30 min</td><td>Can be batched per team/day</td></tr>
+</table></div>
+<p><b>Calibration from actuals:</b> on the reference estate the first module conversion took ~1 day (pattern-setting);
+the second and third took a fraction of that. Modules in this architecture are strongly pattern-identical
+(same base classes, same pipeline shapes), which is what makes step B compress so quickly.</p>
+
+<h2>4. Fleet scenarios</h2>
+<p>Using a planning midpoint of <b>~1.5 h per module</b> for steps B–D (post-pattern), plus a fixed ~2 days of rollout
+overhead (batch coordination, tracking, final gate runs). Adjust N to the real fleet size; the CSV inventory turns
+this from estimate into measurement in the first hour.</p>
+<div class="tblwrap"><table>
+<tr><th>Fleet size</th><th>Pure work content</th><th>1 dedicated dev</th><th>3 devs</th><th>Distributed to module owners (recommended)</th></tr>
+<tr><td class="num">50 modules</td><td class="num">≈ 75 h ≈ 10 pd</td><td class="num">~2.5 wks</td><td class="num">~1 wk</td><td class="num">~1 wk elapsed (each owner: hours)</td></tr>
+<tr><td class="num">150 modules</td><td class="num">≈ 225 h ≈ 30 pd</td><td class="num">~7 wks</td><td class="num">~2.5 wks</td><td class="num">1–2 wks elapsed</td></tr>
+<tr><td class="num">300 modules</td><td class="num">≈ 450 h ≈ 60 pd</td><td class="num">~13 wks — not advised</td><td class="num">~4.5 wks</td><td class="num">2–3 wks elapsed</td></tr>
+</table></div>
+<ul>
+  <li><b>Recommended model:</b> distribute conversion to the teams that own each subscriber (they know their maps'
+      intent — the one thing the work actually requires), coordinated by one rollout owner who runs the script sweeps,
+      keeps the tracking sheet, and audits a sample of conversions. Elapsed time then depends on scheduling, not on a
+      single person's throughput.</li>
+  <li><b>Not every module pays the human cost:</b> modules with zero mapping-library usage (the CSV shows this
+      immediately — e.g. the sample filter in the reference estate) are done after the scripted sweep. Expect the real
+      fleet to bifurcate; the estimate above conservatively prices every module.</li>
+  <li><b>Prioritisation:</b> convert one representative subscriber per team first (the pattern anchor), then fan out
+      alphabetically — variance comes almost entirely from map count, which the CSV makes visible up front.</li>
+</ul>
+
+<h2>5. The coordination constraint (management's real job here)</h2>
+<div class="card warn">
+<h3>One process, one restart window</h3>
+<p style="margin-bottom:0">Every module loads into the host's process; host and modules must agree on all shared
+library versions. Therefore branches can be prepared <b>over weeks, in parallel</b> — but the host switch and all
+rebuilt modules <b>deploy together, once</b>. A single unconverted module that still constructs the old mapping
+library will load and then crash the shared service at first use. Mitigations already built in: the script's lockstep
+guard (refuses to run against an unmigrated host), the build gate's per-module ledger, a pre-deploy grep gate ("zero
+mapping-library references outside the inventory CSV"), and a module-load verification step in the runbook. The
+management ask is simply to <b>own the calendar</b>: one agreed freeze + restart window, with the tracking sheet at
+100% as its entry criterion.</p>
+</div>
+
+<h2>6. Risk register (fleet-specific)</h2>
+<div class="tblwrap"><table>
+<tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr>
+<tr><td>A module missed at cutover crashes the shared service</td><td>Med at scale</td><td>High</td><td>Tracking sheet from CSV; grep gate; build-gate ledger; load check in the restart runbook; rollback = redeploy previous host+modules set</td></tr>
+<tr><td>Drifted modules that never compiled against current host surface as "migration failures"</td><td>Med (observed on the reference estate)</td><td>Med</td><td>Baseline rule: fleet must build against host main <i>before</i> its migration branch starts; drift fixed as separate commits</td></tr>
+<tr><td>Conversion transcription error changes mapping behaviour subtly</td><td>Low–Med</td><td>Med–High</td><td>Compiler enforces completeness; the known dangerous case (clone aliasing) is documented with the exact fix; parity-harness pattern available for any module the owner is unsure about; end-to-end value diff per module (step D)</td></tr>
+<tr><td>Owner availability stretches the elapsed timeline</td><td>Med</td><td>Low (schedule, not quality)</td><td>Work is independent per module; any developer can pick up any module with the runbook; batches re-plannable weekly</td></tr>
+<tr><td>Modules using packages unknown to the version map</td><td>Low</td><td>Low</td><td>Script detects and names them (TODO log) rather than guessing; one-line config answer per package</td></tr>
+</table></div>
+
+<h2>7. Decisions requested from management</h2>
+<ol>
+  <li><b>Confirm the staffing model</b> — distributed-to-owners with one rollout coordinator (recommended), or a
+      dedicated squad (§4 table gives the trade-off).</li>
+  <li><b>Approve the day-one scripted sweep</b> of the whole fleet on a branch (hours, reversible, produces the exact
+      per-module workload numbers that replace §4's estimates with measurements).</li>
+  <li><b>Set the cutover window</b> and adopt "tracking sheet at 100% + grep gate green + load check green" as its
+      entry criteria.</li>
+  <li><b>Nominate the rollout coordinator</b> who owns the tracking sheet, runs the gates, and samples conversions
+      for quality.</li>
+</ol>
+
+<hr>
+<p class="muted">Companion documents: modules-only runbook (the how-to this report costs out), combined host+modules
+effort report, key-challenges briefing, and <code>Migrate-RecoApiModules.ps1</code>. Per-module actuals come from the
+reference estate's three converted subscribers; fleet figures are projections and are labelled as such — the day-one
+sweep converts them to measurements.</p>
+
+</main>
+</body>
+</html>

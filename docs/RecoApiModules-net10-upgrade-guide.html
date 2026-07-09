@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecoApi Modules → .NET 10 — Modules-Only Upgrade Runbook</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8;
+    --codeink:#22223a; --shell:#1b1e2b; --shellink:#e6e6ef; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26;
+      --code:#20202c; --codeink:#dcdce8; --shell:#0e0e16; --shellink:#e6e6ef; } }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.42rem; margin: 3rem 0 .7rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; scroll-margin-top: 1rem; }
+  h3 { font-size: 1.12rem; margin: 1.9rem 0 .4rem; }
+  h4 { font-size: 1rem; margin: 1.3rem 0 .3rem; color: var(--acc2); }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1.02rem; }
+  p, li { font-size: .96rem; }
+  a { color: var(--acc); }
+  table { border-collapse: collapse; width: 100%; margin: .9rem 0 1.3rem; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .12rem .38rem; border-radius: 4px; font-size: .88em; font-family: "Cascadia Code", Consolas, monospace; }
+  pre { background: var(--code); color: var(--codeink); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .84rem; line-height: 1.5; font-family: "Cascadia Code", Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  pre.shell { background: var(--shell); color: var(--shellink); }
+  pre.shell .p { color: #6ee7a8; } pre.shell .c { color: #8b93b3; }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); }
+  .card.bad { border-left-color: var(--bad); } .card.tip { border-left-color: var(--acc2); }
+  .card h4 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); margin-right: .35rem; vertical-align: middle; letter-spacing: .03em; }
+  .tag.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.man { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .muted { color: var(--mut); font-size: .88rem; }
+  .del { color: var(--bad); } .add { color: var(--ok); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding: .2rem 0 1rem 3rem; margin: 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: .1rem; width: 2rem; height: 2rem; background: var(--acc); color: #fff; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem; }
+  .steps > li::after { content: ""; position: absolute; left: .97rem; top: 2.3rem; bottom: -.2rem; width: 2px; background: var(--line); }
+  .steps > li:last-child::after { display: none; }
+  .toc { columns: 2; column-gap: 2rem; font-size: .92rem; padding: 1rem 1.2rem; }
+  .toc a { text-decoration: none; } .toc li { margin: .2rem 0; }
+  .chk { list-style: none; padding-left: 0; }
+  .chk li { padding-left: 1.8rem; position: relative; margin: .35rem 0; }
+  .chk li::before { content: "☐"; position: absolute; left: 0; font-size: 1.1rem; color: var(--acc); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>RecoApi Modules&nbsp;→&nbsp;.NET&nbsp;10 — Modules-Only Upgrade Runbook</h1>
+<p class="sub">Step-by-step guide for upgrading the <b>modules repository alone</b> (Subscribers + Filters) to
+.NET&nbsp;10 against an already-migrated host — using <code>Migrate-RecoApiModules.ps1</code> for the mechanical
+work and converting each module's AutoMapper maps to Mapperly by hand. Written for a junior engineer; scales
+from four modules to hundreds.</p>
+
+<div class="card tip">
+  <h4>Read this first — why "modules-only" still means "in lockstep"</h4>
+  <p style="margin-bottom:0">The host loads every module DLL with <code>Assembly.LoadFile</code> into <b>its own
+  process</b>. There is no isolation boundary: host and modules share one set of loaded assemblies, so they must
+  agree on the version of everything they share — EF&nbsp;Core, <code>Microsoft.Extensions.*</code>,
+  <code>Newtonsoft.Json</code>, the host's own <code>RECO.API.*</code> DLLs. This is the <b>same-process rule</b>.
+  Consequently a module upgrade is never independent: <b>the day the host goes to .NET&nbsp;10, every module must be
+  rebuilt on .NET&nbsp;10 against the new host binaries before the service restarts.</b> "Modules-only" describes
+  <i>which repository you are editing</i>, not a freedom to lag behind. With hundreds of subscribers this lockstep
+  is exactly why the process must be scripted, repeatable and batchable.</p>
+</div>
+
+<h2 id="toc">Contents</h2>
+<ol class="toc">
+  <li><a href="#anatomy">Module anatomy — what you're touching</a></li>
+  <li><a href="#prereq">Prerequisites</a></li>
+  <li><a href="#script">Step 1 — Run the script (Part A)</a></li>
+  <li><a href="#parta-detail">What the script changed, and why</a></li>
+  <li><a href="#partb">Step 2 — AutoMapper → Mapperly per module (Part B)</a></li>
+  <li><a href="#build">Step 3 — Build &amp; deploy-into-host verification</a></li>
+  <li><a href="#scale">Scaling to hundreds of modules</a></li>
+  <li><a href="#test">Test ladder</a></li>
+  <li><a href="#trouble">Troubleshooting</a></li>
+  <li><a href="#checklist">Done checklist</a></li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="anatomy">1. Module anatomy — what you're touching</h2>
+<p>Every module is a small class library that plugs into the host. The four files/concepts that matter for the
+upgrade:</p>
+<div class="tblwrap"><table>
+<tr><th>Piece</th><th>Role</th><th>Touched by</th></tr>
+<tr><td><code>&lt;Module&gt;.csproj</code></td><td>TFM, NuGet packages, <b>HintPath references to host DLLs</b>
+    (<code>..\..\..\RecoApi\src\...\bin\...\RECO.API.*.dll</code>), and an <code>OutputPath</code> that deploys the build
+    <b>into the host's</b> <code>Modules\Subscribers\&lt;Name&gt;</code> folder.</td><td><b>Script</b> (Part A)</td></tr>
+<tr><td><code>SubscriberProvider.cs</code></td><td>The entry point the host's loader discovers and instantiates.</td><td>Part B (mapper type only)</td></tr>
+<tr><td><code>Mapping\MapperFactory.cs</code> (+ <code>IMapperFactory.cs</code>)</td><td>Builds the module's AutoMapper <code>MapperConfiguration</code> — the object that <b>crashes at first use on .NET&nbsp;10</b>.</td><td><b>You</b> (Part B)</td></tr>
+<tr><td><code>Subscribers\*.cs</code></td><td>The pipeline classes that consume <code>IMapper</code> and call <code>_mapper.Map(source, target)</code> onto tracked EF entities.</td><td>Part B (one type swap)</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="prereq">2. Prerequisites</h2>
+<ul class="chk">
+  <li><b>The host repo is already migrated</b> (its projects target <code>net10.0</code>) and checked out as a
+      <b>sibling folder</b> of the modules repo, with the expected names — module HintPaths climb
+      <code>..\..\..\RecoApi\...</code>, so the relative layout is part of the contract.</li>
+  <li>.NET 10 SDK on PATH (<code>dotnet --list-sdks</code> shows a <code>10.x</code> entry).</li>
+  <li>Clean git tree in the modules repo (<code>git status</code> empty), or plan to use <code>-SkipGit</code>.</li>
+  <li><code>Migrate-RecoApiModules.ps1</code> available. If PowerShell refuses to run it:
+      <code>powershell -ExecutionPolicy Bypass -File .\Migrate-RecoApiModules.ps1 ...</code></li>
+</ul>
+<div class="card ok">
+  <h4>Built-in safety net: the lockstep guard</h4>
+  <p style="margin-bottom:0">You don't have to remember the first prerequisite — the script <b>refuses to run</b> (exit
+  code 2, nothing changed) if any host project still targets the old TFM, telling you to migrate or pull the host
+  first. Modules compiled against a stale net6 host are the worst failure mode in a plugin system: they build, deploy,
+  <i>load</i> — and then explode at runtime with type-mismatch errors that point nowhere near the real cause.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="script">3. Step 1 — Run the script (Part A, mechanical)</h2>
+
+<h3>3a. Dry run (default — writes nothing)</h3>
+<pre class="shell"><span class="p">PS&gt;</span> .\Migrate-RecoApiModules.ps1 -ModulesRepo C:\src\RecoApiModules -HostRepo C:\src\RecoApi</pre>
+<p>Read the report: every module should show a <code>WOULD ... (TFM net6.0-&gt;net10.0; HintPath ...; packages ...)</code>
+line or <code>already migrated</code>. Note the line
+<i>"Derived N package version(s) from host csproj files"</i> — the version targets are <b>read from your actual host</b>,
+not hard-coded, so the script self-adapts if your host runs different package versions than the reference migration.</p>
+
+<h3>3b. Apply, with the build gate</h3>
+<pre class="shell"><span class="p">PS&gt;</span> .\Migrate-RecoApiModules.ps1 -ModulesRepo C:\src\RecoApiModules -HostRepo C:\src\RecoApi `
+        -Apply -BuildHostFirst</pre>
+<p>What happens, in order: git branch <code>net10-upgrade</code> created/checked out (modules repo only) →
+every touched file backed up to a <code>.recobak</code> sibling → csproj transforms → AutoMapper inventory CSV
+written → host solution built (<code>-BuildHostFirst</code>) → the presence of every host DLL referenced by a
+module HintPath is verified → each module is built, <b>failures collected rather than aborting</b> (with many
+modules, one red must not hide the state of the rest) → summary with a per-module OK/FAIL count.</p>
+<p>To undo an apply: <code>-Rollback</code> restores every <code>.recobak</code>. Re-running is always safe — the
+script is idempotent and reports "already migrated" instead of double-editing.</p>
+
+<!-- ============================================================ -->
+<h2 id="parta-detail">4. What the script changed, and why</h2>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Change</th><th>Why it matters</th></tr>
+<tr><td>1</td><td><b>TFM</b>: <code>net6.0</code> → <code>net10.0</code></td><td>Modules must match the host runtime.</td></tr>
+<tr><td>2</td><td><b>HintPaths made framework-agnostic</b>:<br>
+    <span class="del">- ..\bin\Debug\net6.0\RECO.API.Domain.dll</span><br>
+    <span class="add">+ ..\bin\$(Configuration)\$(TargetFramework)\RECO.API.Domain.dll</span></td>
+    <td>The old paths had the framework <b>baked in</b>. After a retarget they would still silently resolve the
+    <b>stale net6 host DLLs</b> if those existed on disk — the module builds green against the wrong binaries and
+    fails only at load time. With tokens, host and module can never disagree again. (A deliberately pinned legacy
+    reference such as a <code>netcoreapp2.2</code> utility DLL is left untouched.)</td></tr>
+<tr><td>3</td><td><b>Package versions aligned to the host's own csproj files</b> (EF Core, <code>Microsoft.Extensions.*</code>, Newtonsoft…)</td>
+    <td>The same-process rule, enforced from a single source of truth. If a module uses a package the script has no
+    version for, it logs a <code>TODO</code> naming it rather than guessing — add the answer via <code>-ConfigFile</code>
+    (a small JSON of <code>{"Package.Id": "x.y.z"}</code>).</td></tr>
+<tr><td>4</td><td><b>AutoMapper inventory CSV</b> (<code>automapper-inventory-*.csv</code> in the modules repo root)</td>
+    <td>Your Part B worklist: every file+line using AutoMapper, per module. <b>Not auto-converted</b> — see below why.</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="partb">5. Step 2 — AutoMapper → Mapperly, per module (Part B, manual)</h2>
+
+<div class="card bad">
+  <h4>Why this step is not optional and not scriptable</h4>
+  <p style="margin-bottom:0"><b>Not optional:</b> AutoMapper 11 builds green on .NET&nbsp;10 but throws
+  <code>TypeInitializationException → VerificationException</code> the moment its <code>MapperConfiguration</code> is
+  constructed (its scanner reflects over LINQ internals that gained struct constraints). Every subscriber using it
+  will load and then die on first mapping. <b>Not scriptable:</b> each <code>ForMember(x =&gt; x.Y, o =&gt; o.Ignore())</code>
+  encodes deliberate intent — which key/audit/navigation properties must <i>not</i> be copied onto tracked EF
+  entities. Converting is a transcription of intent, verified by the compiler — a human task with a mechanical rhythm.</p>
+</div>
+
+<p>Each module needs the same four moves. Budget ~30–60 minutes per typical subscriber once you've done one.</p>
+
+<h3>Move 1 — Swap the package</h3>
+<p>In the module csproj: delete <code>&lt;PackageReference Include="AutoMapper" .../&gt;</code>, add
+<code>&lt;PackageReference Include="Riok.Mapperly" Version="4.3.1" /&gt;</code> (match the version your host's
+migration standardised on). Mapperly is a compile-time source generator — <b>no runtime DLL ships</b>, which is
+precisely why it deletes the version-unification problem AutoMapper had across the plugin boundary.</p>
+
+<h3>Move 2 — Transcribe the maps into a <code>[Mapper]</code> class</h3>
+<p>Create <code>Mapping\SubscriberMappings.cs</code>. Real before/after from a migrated subscriber:</p>
+<div class="tblwrap"><table>
+<tr><th style="width:50%">Before — runtime AutoMapper config</th><th>After — compile-time Mapperly</th></tr>
+<tr>
+<td><pre style="font-size:.78rem"><code>cfg.CreateMap&lt;Reco.TblCode, Sub.TblCode&gt;()
+  .ForMember(m =&gt; m.TblCodeId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroupId,o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroup,  o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.ForeignId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.AddDate,
+             o =&gt; o.MapFrom(s =&gt; s.Created));
+// ...
+_mapperConfiguration
+    .AssertConfigurationIsValid();</code></pre></td>
+<td><pre style="font-size:.78rem"><code>[Mapper(PropertyNameMappingStrategy =
+          PropertyNameMappingStrategy.CaseInsensitive,
+        RequiredMappingStrategy =
+          RequiredMappingStrategy.Target)]
+internal static partial class SubscriberMappings
+{
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroupId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroup))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.ForeignId))]
+  [MapProperty(nameof(Reco.TblCode.Created),
+               nameof(Sub.TblCode.AddDate))]
+  internal static partial void Copy(
+      Reco.TblCode source, Sub.TblCode target);
+}</code></pre></td>
+</tr>
+</table></div>
+<p>The transcription rules, one per old construct:</p>
+<ul>
+  <li><code>ForMember(…, Ignore())</code> → one <code>[MapperIgnoreTarget(nameof(...))]</code>. <b>One attribute per old
+      line — no more, no fewer.</b> Behaviour preservation over tidiness.</li>
+  <li><code>ForMember(…, MapFrom(s =&gt; s.X))</code> (a rename) → <code>[MapProperty(nameof(Src.X), nameof(Dst.Y))]</code>.</li>
+  <li><code>PropertyNameMappingStrategy.CaseInsensitive</code> on the class mirrors AutoMapper's matching (needed because
+      e.g. domain <code>TblCodeID</code> vs model <code>TblCodeId</code>).</li>
+  <li><code>RequiredMappingStrategy.Target</code> is the compile-time replacement for
+      <code>AssertConfigurationIsValid()</code>: every destination member must be mapped or explicitly ignored — checked
+      on <b>every build</b> instead of in a static constructor at runtime.</li>
+  <li>Subscriber pipelines call <code>Map(source, target)</code> onto tracked local entities — so declare <b>in-place
+      <code>void Copy(source, target)</code> methods only</b>. Don't add create-maps nothing calls.</li>
+</ul>
+
+<div class="card bad">
+  <h4>The clone gotcha (if your module has any same-type map)</h4>
+  <p style="margin-bottom:0">A Mapperly same-type map (<code>TblCode Clone(TblCode s)</code>) compiles to
+  <code>return source;</code> — <b>the same reference, not a copy</b>. Anything that snapshots "old values" before an
+  update would silently compare an object with itself. If you need a clone: <code>var t = new TblCode();
+  SubscriberMappings.CopyOnto(s, t); return t;</code> — new instance plus the generated in-place copy.</p>
+</div>
+
+<h3>Move 3 — Slim the MapperFactory to a registry</h3>
+<p>The module keeps its <code>MapperFactory</code> but it now just registers the generated methods into the host's
+mapper seam (defined in <code>RECO.API.Domain</code>, which every module already references). Real after-state:</p>
+<pre><code>using RECO.API.Domain.Mapping;
+
+internal static class MapperFactory
+{
+    public static IObjectMapper CreateMapper()
+    {
+        return new ObjectMapperRegistry()
+            .RegisterUpdate&lt;Reco.TblCode,        Sub.TblCode&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeRel,     Sub.TblCodeRel&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeType,    Sub.TblCodeGroup&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeTypeRel, Sub.TblCodeTypeRel&gt;(SubscriberMappings.Copy);
+    }
+}</code></pre>
+<p class="muted">Every registration line points at a method the compiler verified; a missing pair throws an
+exception naming the exact (source, target) pair. Delete the old <code>IMapperFactory.cs</code> if present.</p>
+
+<h3>Move 4 — Swap the consumer type</h3>
+<p>In <code>SubscriberBase</code> / <code>SubscriberProvider</code> (and any other consumer):
+<code>using AutoMapper;</code> → <code>using RECO.API.Domain.Mapping;</code> and <code>IMapper</code> →
+<code>IObjectMapper</code>. <b>The call sites (<code>_mapper.Map(src, dst)</code>) do not change.</b></p>
+
+<div class="card tip">
+  <h4>Expected diagnostics — how to read Mapperly's output</h4>
+  <p style="margin-bottom:0"><b>RMG errors</b> (unmapped required target member): a real gap — add the missing
+  <code>[MapperIgnoreTarget]</code> (if the old config ignored it) or <code>[MapProperty]</code> (if it was a rename).
+  <b>RMG012 warnings</b> on nested navigation members: usually fine — in the subscriber flow records arrive as
+  scalars from the host API and those navigations are null; the warning documents the boundary. Verify that holds for
+  your module, then leave the warning visible rather than suppressing it.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="build">6. Step 3 — Build &amp; verify the deploy-into-host chain</h2>
+<ol class="steps">
+  <li><b>Host first, always.</b> Modules reference host DLLs by HintPath; a missing/stale host build is the root cause
+      of ~90% of module build errors. (<code>-BuildHostFirst</code> does this for you; the script also verifies every
+      referenced DLL exists and names the missing ones.)</li>
+  <li><b>Build each module</b> (its own <code>.sln</code>). Watch it <b>deploy into the host</b>: the csproj
+      <code>OutputPath</code> drops the DLLs into
+      <code>RecoApi\src\Service\RECO.API.Service\Modules\Subscribers\&lt;Name&gt;</code>. If that folder didn't update,
+      the host will keep loading the old module — check <code>OutputPath</code>/<code>OutDir</code> survived your edits
+      and that <code>settings.json</code> has <code>CopyToOutputDirectory=PreserveNewest</code>.</li>
+  <li><b>Prove the load path.</b> Green compile ≠ loadable plugin. Start the host service and confirm the log lists
+      your module's provider(s), or run the team's module-load harness if one exists (it resolves every exported type
+      of each module DLL against the host binaries — the strongest cheap check).</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="scale">7. Scaling to hundreds of modules</h2>
+<ul>
+  <li><b>Batch with <code>-ModuleFilter</code></b>: <code>-ModuleFilter 'RDBES.*'</code>, <code>'*Subscriber*'</code>, or
+      per-team prefixes. Part A is safe to run repeatedly — already-migrated modules are skipped — so you can sweep the
+      whole repo mechanically on day one, then work Part B batch by batch.</li>
+  <li><b>Track Part B with the inventory CSV.</b> Pivot it by folder: modules with zero AutoMapper hits are done after
+      Part A; the rest get an owner and the four moves. The build gate's per-module OK/FAIL list is your progress board.</li>
+  <li><b>Order by risk:</b> convert one representative subscriber first (your team's "reference conversion" —
+      compare against a migrated one throughout), then fan out. Identical subscriber shapes make later conversions
+      largely mechanical.</li>
+  <li><b>Lockstep the cutover:</b> the host restart onto .NET&nbsp;10 requires every deployed module rebuilt. Batches can
+      be <i>prepared</i> on branches over weeks, but they <b>merge and deploy together</b> with the host switch. Plan the
+      restart window accordingly.</li>
+  <li><b>Parity-check anything you're unsure of:</b> map a fully-populated object through the old config (reference
+      AutoMapper 12.0.1 in a throwaway test project — the last freely-usable version that still initialises on
+      .NET&nbsp;10) and through your Mapperly methods, compare property-by-property. The reference migration proved
+      236/236 identical this way — the harness is cheap to rebuild and catches transcription slips instantly.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="test">8. Test ladder</h2>
+<div class="tblwrap"><table>
+<tr><th>#</th><th>Test</th><th>Proves</th></tr>
+<tr><td>1</td><td>Script dry-run reports every target module (and nothing else)</td><td>Discovery &amp; filter correct</td></tr>
+<tr><td>2</td><td>Host builds; script's host-DLL check passes</td><td>Reference chain intact</td></tr>
+<tr><td>3</td><td>Every module builds; gate reports <code>N OK, 0 failed</code></td><td>Part A + Part B compile-time complete (incl. Mapperly's Target-strategy validation)</td></tr>
+<tr><td>4</td><td>Grep the repo for <code>AutoMapper</code>: only the inventory CSV mentions it</td><td>No half-converted module remains</td></tr>
+<tr><td>5</td><td>Module DLLs (and <code>settings.json</code>) appear fresh under the host's <code>Modules\...\&lt;Name&gt;</code></td><td>Deploy-into-host chain works</td></tr>
+<tr><td>6</td><td>Host starts; log shows every provider loaded; no <code>VerificationException</code>/<code>TypeLoadException</code></td><td>The plugin path on .NET 10 — the thing compile can't prove</td></tr>
+<tr><td>7</td><td>One end-to-end flow per module (subscriber pull → mapping → persistence), values diffed against a pre-migration run</td><td>Mapperly parity in reality <span class="tag">needs dev DB</span></td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="trouble">9. Troubleshooting</h2>
+<div class="tblwrap"><table>
+<tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+<tr><td>Script exits 2: <code>HOST IS NOT MIGRATED</code></td><td>The lockstep guard — host projects still target the old TFM</td><td>Migrate or pull the migrated host first. Overriding with <code>-SkipHostCheck</code> is almost always the wrong move.</td></tr>
+<tr><td>Module build: wall of <code>CS0246 'RECO' could not be found</code></td><td>Host DLLs missing at the HintPath — host not built, or wrong sibling layout</td><td>Build the host (<code>-BuildHostFirst</code>); check the repos sit side by side with the expected folder names; read the script's host-DLL check output — it names exactly which DLL is missing.</td></tr>
+<tr><td><code>MSB3021/MSB3027</code> file-lock errors</td><td>The host service is running and holds module/host DLLs</td><td>Not compile errors. Stop the service, rebuild.</td></tr>
+<tr><td><code>NU1605</code> package downgrade / <code>NU1102</code> not found</td><td>A module pins a shared package differently than the host, or uses a package with no known target version</td><td>The version must equal the host's (same-process rule). For unknown packages the script logged a <code>TODO</code> — supply the version via <code>-ConfigFile</code>.</td></tr>
+<tr><td>Mapperly <code>RMG</code> <i>error</i>: required member not mapped</td><td>A destination property the old config ignored (or renamed) wasn't transcribed</td><td>Add the matching <code>[MapperIgnoreTarget]</code>/<code>[MapProperty]</code>. Check the old <code>MapperFactory</code> line by line — one attribute per old <code>ForMember</code>.</td></tr>
+<tr><td><code>RMG012</code> warnings on nested navigations</td><td>Mapperly auto-derived a nested map and can't match some members</td><td>Expected if those navigations are null in the subscriber flow — verify, then accept the warning as documentation.</td></tr>
+<tr><td>Runtime: registry throws "no mapping registered for (X, Y)"</td><td>A pair the pipeline maps wasn't registered in <code>MapperFactory.CreateMapper()</code></td><td>Add the <code>RegisterUpdate&lt;X, Y&gt;(SubscriberMappings.Copy)</code> line. The exception names the exact pair — that's by design.</td></tr>
+<tr><td>Runtime: <code>VerificationException ... MaxInteger ... violates the constraint</code></td><td>An unconverted module still constructs an AutoMapper 11 config on .NET 10</td><td>That module missed Part B — rung 4 of the test ladder exists to catch this before deploy.</td></tr>
+<tr><td>Runtime: <code>TypeLoadException</code> / <code>MissingMethodException</code> / assembly version conflict at module load</td><td>Same-process rule broken — module resolved a different shared-package or host-DLL version than the host</td><td>Re-run the script (it re-derives versions from the host); confirm HintPaths are tokenised, not hard-coded; rebuild host then module; clear stale <code>bin</code>/<code>obj</code> and the deployed module folder.</td></tr>
+<tr><td>Host starts but your module's provider never appears</td><td>Deployed folder stale, or provider type no longer implements the expected interface</td><td>Check the deploy folder timestamp (step 6.2); diff <code>SubscriberProvider</code> against a working module; check host log for per-module load errors.</td></tr>
+<tr><td>Old/new comparisons suddenly always "equal" after conversion</td><td>The identity-clone gotcha — a same-type Mapperly map aliased the tracked entity</td><td>Replace with new-instance + generated <code>CopyOnto</code> (§5, red card).</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="checklist">10. Done checklist (per module)</h2>
+<ul class="chk">
+  <li>csproj: TFM <code>net10.0</code>, tokenised HintPaths, packages = host versions, AutoMapper reference gone, Mapperly added.</li>
+  <li><code>SubscriberMappings.cs</code>: one attribute per old <code>ForMember</code>; CaseInsensitive + RequiredMappingStrategy.Target; in-place <code>Copy</code> methods only; no aliasing clone.</li>
+  <li><code>MapperFactory</code> registers every mapped pair; <code>IMapperFactory.cs</code> deleted; consumers on <code>IObjectMapper</code>.</li>
+  <li>Module builds green (warnings reviewed); deploys into the host's <code>Modules</code> folder.</li>
+  <li>Host loads the module; one end-to-end flow verified against pre-migration output.</li>
+  <li><code>*.recobak</code>, <code>migrate-modules-*.log</code>, <code>automapper-inventory-*.csv</code> deleted before committing; work committed on <code>net10-upgrade</code>.</li>
+</ul>
+
+<hr>
+<p class="muted">Companion to the combined host+modules runbook and the key-challenges overview. The mechanical
+transforms in <code>Migrate-RecoApiModules.ps1</code> were validated by reproducing the reference module migration
+from a clean .NET 6 checkout against a migrated host: all four module csprojs byte-identical to the known-good
+result, lockstep guard verified (refuses a net6 host), build gate green (host-first build, DLL presence check,
+4/4 modules), idempotent re-run, rollback restores the originals. Part B remains a human task by design.</p>
+
+</main>
+</body>
+</html>

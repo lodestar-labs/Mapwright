@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RecoApi → .NET 10 (Host + Modules) — Effort Report for Technical Management</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8; --codeink:#22223a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26; --code:#20202c; --codeink:#dcdce8; } }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.8rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.35rem; margin: 2.6rem 0 .6rem; border-bottom: 2px solid var(--line); padding-bottom: .3rem; }
+  h3 { font-size: 1.08rem; margin: 1.6rem 0 .4rem; }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1rem; }
+  p, li { font-size: .95rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .89rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .1rem .35rem; border-radius: 4px; font-size: .88em; font-family: Consolas, monospace; }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); } .card.bad { border-left-color: var(--bad); }
+  .card h3 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; margin-right: .3rem;
+         background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); letter-spacing: .03em; }
+  .tag.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.warn { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .muted { color: var(--mut); font-size: .87rem; }
+  .kpi-row { display: flex; flex-wrap: wrap; gap: .8rem; margin: 1.2rem 0; }
+  .kpi { flex: 1 1 180px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: .8rem 1rem; }
+  .kpi .v { font-size: 1.5rem; font-weight: 700; color: var(--acc); }
+  .kpi .l { font-size: .8rem; color: var(--mut); }
+  .num { font-variant-numeric: tabular-nums; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.2rem 0; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>RecoApi → .NET 10 Migration (Host + Modules)</h1>
+<p class="sub">Effort report for technical management · combined upgrade of the RecoApi host solution and its
+plugin modules from .NET 6 to .NET 10, including the mandatory replacement of AutoMapper · status, effort
+accounting, projections and decisions required.</p>
+
+<h2>1. Executive summary</h2>
+<div class="kpi-row">
+  <div class="kpi"><div class="v">Done ✓</div><div class="l">Reference migration executed &amp; verified (4-module estate)</div></div>
+  <div class="kpi"><div class="v">~2 wks</div><div class="l">One senior engineer, end to end, incl. all tooling &amp; guides</div></div>
+  <div class="kpi"><div class="v">&lt; 1 day</div><div class="l">Projected Part A re-application to any similar repo pair (scripted)</div></div>
+  <div class="kpi"><div class="v">2 items</div><div class="l">Open: dev-DB runtime verification · production module fleet (separate report)</div></div>
+</div>
+<p><b>What happened:</b> the full host + modules code base was migrated on branches
+(<code>net10-upgrade</code>, then <code>replace-automapper-mapperly</code> in both repositories), verified as far as
+this environment allows, and — more importantly for cost — <b>the migration itself was converted into reusable,
+tested tooling and runbooks</b>, so re-applying it to the production repositories (which differ mainly in module
+count) is a fraction of the original effort.</p>
+<p><b>Why it was necessary (not optional):</b></p>
+<ul>
+  <li><b>Unsupported runtime.</b> .NET 6 left Microsoft support in November 2024; every month since is unpatched
+      exposure on an internet-adjacent data service.</li>
+  <li><b>A guaranteed production crash was latent.</b> AutoMapper 11 — used by the host and three subscriber
+      modules — <b>cannot initialise on .NET 10</b>: builds succeed, then the service throws on first mapper use.
+      A "just retarget" migration would have shipped a time bomb. The library also carries a high-severity security
+      advisory, and its fixed versions moved to a commercial licence — so replacement (with Apache-licensed,
+      compile-time Mapperly) was the only path that resolved crash, CVE and licensing at once.</li>
+  <li><b>Pre-existing drift was already breaking module builds</b> (two of four modules didn't compile against the
+      current host before we started) — evidence that the estate needed a consolidation pass regardless.</li>
+</ul>
+
+<h2>2. Scope delivered</h2>
+<div class="tblwrap"><table>
+<tr><th>Deliverable</th><th>Description</th><th>State</th></tr>
+<tr><td>Migrated code, Part A</td><td>15 projects (11 host + 4 modules) retargeted to net10.0; ~20 NuGet packages aligned across both repos; 19 fragile hard-coded reference paths made framework-proof; connection-string and module-path hardening; custom email log sink rewritten for the new Serilog API (config-file compatible — no ops changes)</td><td><span class="tag ok">DONE</span> — builds clean</td></tr>
+<tr><td>Migrated code, Part B</td><td>AutoMapper removed from host + 3 subscriber modules; replaced with compile-time generated mapping behind a small internal seam; consumer call sites unchanged</td><td><span class="tag ok">DONE</span> — proven equivalent (see §4)</td></tr>
+<tr><td>Automation</td><td><code>Migrate-RecoApi.ps1</code> (combined) and <code>Migrate-RecoApiModules.ps1</code> (modules-only): discovery-based, dry-run by default, backup/rollback, idempotent, build gates. Both validated by re-deriving the hand-made migration byte-for-byte from a clean checkout</td><td><span class="tag ok">DONE</span></td></tr>
+<tr><td>Documentation</td><td>Two step-by-step runbooks (combined, modules-only) written for junior engineers; a key-challenges briefing for the wider dev team; this report and its modules-only counterpart</td><td><span class="tag ok">DONE</span></td></tr>
+<tr><td>Runtime verification vs dev SQL Server</td><td>Service start, module load, one end-to-end flow per module, error-email test, queue tests</td><td><span class="tag warn">OPEN</span> — the dev DB is unreachable from the migration machine; checklist prepared, est. 1–2 days on a connected machine</td></tr>
+</table></div>
+
+<h2>3. Effort accounting and what it buys next time</h2>
+<p>Actual effort on the reference estate, and the projection for re-applying to a production repo pair — the key
+management point being that <b>most of the spend was one-off investment in automation and verification method</b>,
+not repeated labour:</p>
+<div class="tblwrap"><table>
+<tr><th>Work item</th><th>Reference (actual, one senior eng.)</th><th>Re-application (projected)</th><th>Why the difference</th></tr>
+<tr><td>Baseline &amp; drift repair</td><td class="num">0.5 d</td><td class="num">0.5–1 d</td><td>Must be redone per repo state (cannot be scripted safely)</td></tr>
+<tr><td>Part A: retarget, packages, paths, config</td><td class="num">1.5 d (incl. discovering every breakage by hand)</td><td class="num">&lt; 0.5 d</td><td><b>Scripted</b>: minutes to run + review of the dry-run diff</td></tr>
+<tr><td>Part A: email-sink rewrite</td><td class="num">0.5 d</td><td class="num">0.25 d</td><td>Exact target code is in the runbook; adapt if local sink differs</td></tr>
+<tr><td>Part B: host mapping replacement + seam</td><td class="num">2 d</td><td class="num">0.5–1 d</td><td>Seam design + parity-harness pattern now exist; transcription remains</td></tr>
+<tr><td>Part B: per-module conversion (× 3 modules)</td><td class="num">1.5 d</td><td class="num">see modules report</td><td>First module sets the pattern (~1 d); repeats drop to 0.5–2 h each</td></tr>
+<tr><td>Verification (build gates, module-load harness, mapping parity 236/236)</td><td class="num">2 d</td><td class="num">0.5–1 d</td><td>Harness + test ladder are reusable artifacts</td></tr>
+<tr><td>Tooling hardening + all documentation</td><td class="num">2–3 d</td><td class="num">0</td><td>One-off investment — this is the reusable capital</td></tr>
+<tr><th>Total</th><th class="num">≈ 10 working days</th><th class="num">≈ 2.5–4 days + module fleet</th><td></td></tr>
+</table></div>
+<p class="muted">Module-fleet scaling (hundreds of subscribers) is costed separately in the modules-only effort
+report — it is a parallelisable, per-module work stream with different staffing dynamics.</p>
+
+<h2>4. Quality evidence — why we trust this migration</h2>
+<ul>
+  <li><b>Behaviour preservation was measured, not assumed:</b> the new mapping layer was compared against the original
+      AutoMapper configuration on fully-populated objects — <b>236 of 236 property comparisons identical</b> across all
+      8 entities and every map shape (including the subtle clone semantics where the naive conversion would have
+      silently corrupted change detection — caught precisely by this harness).</li>
+  <li><b>The plugin risk was tested directly:</b> a load harness resolved every exported type of every module
+      (44–66 types each) against the .NET 10 host binaries — the exact failure mode a plugin architecture fears most.</li>
+  <li><b>The automation was validated like a product:</b> run against clean checkouts of the pre-migration state, its
+      output diffed byte-for-byte against the hand-made reference branches (modules: identical; host: identical except
+      comments), plus idempotency, rollback, and a full failure-path rehearsal (expected RED build → fix → GREEN) so
+      the runbook's troubleshooting section reflects observed reality.</li>
+  <li><b>Honest boundary:</b> everything above ran without the dev SQL Server. Startup opens the database, so final
+      end-to-end confirmation is an explicit open item (§2), not an implied claim.</li>
+</ul>
+
+<h2>5. Risk register</h2>
+<div class="tblwrap"><table>
+<tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation in place</th></tr>
+<tr><td>Runtime regression only visible against the real DB (EF Core 6→10 query behaviour)</td><td>Low–Med</td><td>Med</td><td>Queries are simple lookups; explicit DB-machine checklist; two-branch merge order keeps any regression attributable</td></tr>
+<tr><td>A production module missed during rollout crashes the shared process</td><td>Med (at fleet scale)</td><td>High</td><td>Lockstep guard in tooling; build gates; module-load verification step; see modules report for fleet process</td></tr>
+<tr><td>Email alerting behaves differently (only config-shape change in the stack)</td><td>Low</td><td>Low–Med</td><td>Config contract kept byte-compatible; explicit "trigger an error email" test on the checklist</td></tr>
+<tr><td>Team unfamiliarity with the new mapping layer slows future feature work</td><td>Low</td><td>Low</td><td>Compile-time errors now name exact missing mappings; challenges briefing + runbooks; pattern is less magic than AutoMapper, not more</td></tr>
+<tr><td>Staying on .NET 6 instead (do-nothing)</td><td>—</td><td><b>High &amp; compounding</b></td><td>Unpatched runtime, unfixable AutoMapper CVE, and every future dependency update drifts further out of reach</td></tr>
+</table></div>
+
+<h2>6. Decisions requested from management</h2>
+<ol>
+  <li><b>Schedule the DB-connected verification</b> (1–2 days, any engineer + the runbook checklist) and treat its
+      completion as the merge gate.</li>
+  <li><b>Approve the merge order</b>: <code>net10-upgrade</code> first, then <code>replace-automapper-mapperly</code> —
+      two clean diffs, regressions stay attributable. Nothing has been pushed without review.</li>
+  <li><b>Commission the production-fleet rollout</b> per the modules-only effort report (staffing model and timeline
+      scenarios there), including one agreed <b>service-restart window</b> for the lockstep cutover.</li>
+  <li><b>Adopt the tooling as the standard path</b> for any sibling deployments of this architecture, so the one-off
+      investment keeps paying out.</li>
+</ol>
+
+<hr>
+<p class="muted">Companion documents: combined runbook, modules-only runbook + effort report, key-challenges
+briefing, and the two migration scripts. All effort figures for completed work are actuals from the reference
+migration; projections are labelled as such.</p>
+
+</main>
+</body>
+</html>
