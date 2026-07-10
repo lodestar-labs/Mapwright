@@ -14,14 +14,16 @@
   body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
   main { max-width: 1000px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
   h1 { font-size: 2rem; margin: 0 0 .2rem; letter-spacing: -.02em; }
-  h2 { font-size: 1.3rem; margin: 2.6rem 0 .3rem; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .2rem; }
+  h3 { font-size: 1rem; margin: 1.6rem 0 .5rem; color: var(--acc2); text-transform: uppercase; letter-spacing: .04em; }
   .sub { color: var(--mut); margin: 0 0 1rem; font-size: 1.02rem; }
   .sec-sub { color: var(--mut); margin: 0 0 1rem; font-size: .92rem; }
+  .path { color: var(--mut); font-size: .8rem; font-family: Consolas, monospace; margin: .2rem 0 1rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: .9rem; }
   a.card { display: block; border: 1px solid var(--line); border-radius: 10px; background: var(--card);
     padding: 1rem 1.1rem; text-decoration: none; color: var(--ink); transition: border-color .15s, transform .15s; }
   a.card:hover { border-color: var(--acc); transform: translateY(-2px); }
-  a.card h3 { margin: 0 0 .3rem; font-size: 1.02rem; color: var(--acc); }
+  a.card h3.card-title { margin: 0 0 .3rem; font-size: 1.02rem; color: var(--acc); text-transform: none; letter-spacing: 0; }
   a.card p { margin: 0; font-size: .87rem; color: var(--mut); }
   .tag { display: inline-block; font-size: .68rem; font-weight: 700; padding: .1rem .5rem; border-radius: 20px;
     margin: 0 .3rem .5rem 0; letter-spacing: .03em;
@@ -30,6 +32,7 @@
   .tag.mgr { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
   .tag.script { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
   code { background: var(--code); color: var(--codeink); padding: .1rem .35rem; border-radius: 4px; font-size: .85em; font-family: Consolas, monospace; }
+  hr.sep { border: none; border-top: 1px solid var(--line); margin: 2.8rem 0 0; }
   footer { margin-top: 3.5rem; color: var(--mut); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 1rem; }
   footer a { color: var(--acc); }
 </style>
@@ -41,109 +44,136 @@
 <p class="sub">Guides, runbooks, migration tooling and management reports published from the
 <a href="https://github.com/lodestar-labs/Mapwright" style="color:var(--acc)">Mapwright</a> repository.</p>
 
+<!-- ============================================================ -->
 <h2>Mapwright &amp; leaving AutoMapper</h2>
 <p class="sec-sub">The compile-time object mapper for .NET, and why/how to move off runtime-configured mapping.</p>
+<p class="path">docs/mapwright/</p>
 <div class="grid">
-  <a class="card" href="automapper-and-mapwright-explained.html">
+  <a class="card" href="mapwright/automapper-and-mapwright-explained.html">
     <span class="tag eng">DEVELOPERS</span>
-    <h3>AutoMapper &amp; Mapwright, explained</h3>
+    <h3 class="card-title">AutoMapper &amp; Mapwright, explained</h3>
     <p>What runtime mapping actually does, what a source generator does instead, and why the difference matters.</p>
   </a>
-  <a class="card" href="automapper-vs-mapwright.html">
+  <a class="card" href="mapwright/automapper-vs-mapwright.html">
     <span class="tag eng">DEVELOPERS</span>
-    <h3>AutoMapper vs Mapwright</h3>
+    <h3 class="card-title">AutoMapper vs Mapwright</h3>
     <p>Side-by-side comparison: configuration, validation, performance, debugging, licensing.</p>
   </a>
-  <a class="card" href="replacing-automapper.html">
+  <a class="card" href="mapwright/replacing-automapper.html">
     <span class="tag eng">DEVELOPERS</span>
-    <h3>Replacing AutoMapper</h3>
+    <h3 class="card-title">Replacing AutoMapper</h3>
     <p>The general migration guide: mapping construct by construct, with the gotchas.</p>
   </a>
 </div>
 
+<hr class="sep">
+
+<!-- ============================================================ -->
 <h2>Case study: RecoApi → .NET 10</h2>
 <p class="sec-sub">A complete migration of a plugin-architecture service (host + subscriber/filter modules) from
-.NET 6 to .NET 10, including the mandatory AutoMapper replacement — runbooks, validated tooling, a developer
-briefing and management reports.</p>
+.NET 6 to .NET 10, including the AutoMapper decision — runbooks, validated tooling, a developer briefing and
+management reports.</p>
+
+<h3>Guides &amp; briefings</h3>
+<p class="path">docs/recoapi-net10-migration/guides/</p>
 <div class="grid">
-  <a class="card" href="recoapi-net10-upgrade-junior-guide.html">
+  <a class="card" href="recoapi-net10-migration/guides/recoapi-net10-upgrade-guide.html">
     <span class="tag eng">RUNBOOK</span>
-    <h3>Combined upgrade runbook</h3>
+    <h3 class="card-title">Combined upgrade runbook</h3>
     <p>Host + modules, step by step for a junior engineer: the script, the EmailSink rewrite, Part B, tests, troubleshooting.</p>
   </a>
-  <a class="card" href="RecoApiModules-net10-upgrade-guide.html">
+  <a class="card" href="recoapi-net10-migration/guides/RecoApiModules-net10-upgrade-guide.html">
     <span class="tag eng">RUNBOOK</span>
-    <h3>Modules-only upgrade runbook</h3>
+    <h3 class="card-title">Modules-only upgrade runbook</h3>
     <p>Upgrading the module fleet against an already-migrated host — lockstep rules, per-module recipe, scaling to hundreds.</p>
   </a>
-  <a class="card" href="recoapi-net10-key-challenges.html">
+  <a class="card" href="recoapi-net10-migration/guides/Junior-developer-step-by-step-net10-migration.txt">
+    <span class="tag eng">STEP BY STEP</span>
+    <h3 class="card-title">Junior developer step-by-step migration</h3>
+    <p>Fail-proof walkthrough: every step as DO / CHECK / IF-IT-FAILS, exact code to paste, recovery paths, emergency exits.</p>
+  </a>
+  <a class="card" href="recoapi-net10-migration/guides/recoapi-net10-key-challenges.html">
     <span class="tag eng">BRIEFING</span>
-    <h3>The key challenges, explained</h3>
+    <h3 class="card-title">The key challenges, explained</h3>
     <p>Developer-to-developer: the eight things that actually made this migration hard, with evidence and takeaways.</p>
   </a>
-  <a class="card" href="recoapi-net10-migration-effort-report.html">
-    <span class="tag mgr">MANAGEMENT</span>
-    <h3>Effort report — combined migration</h3>
-    <p>For technical managers: effort actuals vs projections, quality evidence, risks, decisions requested.</p>
+</div>
+
+<h3>Task lists &amp; how-tos</h3>
+<p class="path">docs/recoapi-net10-migration/plans/</p>
+<div class="grid">
+  <a class="card" href="recoapi-net10-migration/plans/Full-app-net10-migration-plan.txt">
+    <span class="tag mgr">FULL PLAN</span>
+    <h3 class="card-title">Full-app migration plan</h3>
+    <p>Host first, then filters/subscribers as one unit: every task as issue / solution / developer action / time range, plus added time per extra module and the AutoMapper options.</p>
   </a>
-  <a class="card" href="recoapi-modules-migration-effort-report.html">
-    <span class="tag mgr">MANAGEMENT</span>
-    <h3>Effort report — module fleet rollout</h3>
-    <p>Per-module effort model, staffing scenarios for fleets of 50–300 modules, and the one-restart-window constraint.</p>
+  <a class="card" href="recoapi-net10-migration/plans/Host-net10-upgrade-effort.txt">
+    <span class="tag mgr">TASK LIST</span>
+    <h3 class="card-title">Host app upgrade — issues &amp; effort</h3>
+    <p>Each .NET 10 issue for the host service with its solution, developer action, and time.</p>
   </a>
-  <a class="card" href="Main-challenges-net6-to-net10.txt">
-    <span class="tag mgr">PLAIN TEXT · SUMMARY</span>
-    <h3>Main challenges — management summary (.txt)</h3>
-    <p>One-page summary for management: the six main challenges of the .NET 6 → 10 migration (incl. the EF Core jump), ranked, with the effort picture.</p>
+  <a class="card" href="recoapi-net10-migration/plans/Modules-net10-upgrade-effort.txt">
+    <span class="tag mgr">TASK LIST</span>
+    <h3 class="card-title">Modules upgrade — issues &amp; effort</h3>
+    <p>Same format, split into subscriber and filter sections.</p>
   </a>
-  <a class="card" href="Junior-developer-step-by-step-net10-migration.txt">
-    <span class="tag eng">PLAIN TEXT · STEP BY STEP</span>
-    <h3>Junior developer step-by-step migration (.txt)</h3>
-    <p>Fail-proof walkthrough for a junior developer: every step as DO / CHECK / IF-IT-FAILS with exact code to paste, recovery paths, and emergency exits.</p>
+  <a class="card" href="recoapi-net10-migration/plans/Finding-net10-compatible-package-versions.txt">
+    <span class="tag eng">HOW-TO</span>
+    <h3 class="card-title">Finding .NET 10-compatible package versions</h3>
+    <p>The dotnet CLI commands, nuget.org, the Microsoft 10.0.x rule — and why "compatible" is not "works at runtime".</p>
   </a>
-  <a class="card" href="Full-app-net10-migration-plan.txt">
-    <span class="tag mgr">PLAIN TEXT · FULL PLAN</span>
-    <h3>Full-app migration plan — tasks, why, how &amp; time (.txt)</h3>
-    <p>The whole app (host + modules) as a phased task list: each task with the .NET 10 issue that mandates it, how to solve it, and a developer time range per component.</p>
-  </a>
-  <a class="card" href="Finding-net10-compatible-package-versions.txt">
-    <span class="tag mgr">PLAIN TEXT · HOW-TO</span>
-    <h3>Finding .NET 10-compatible package versions (.txt)</h3>
-    <p>How to pick NuGet package versions when retargeting: the dotnet CLI commands, nuget.org, the Microsoft 10.0.x rule, build errors — and why "compatible" is not "works at runtime".</p>
-  </a>
-  <a class="card" href="Host-net10-upgrade-effort.txt">
-    <span class="tag mgr">PLAIN TEXT</span>
-    <h3>Host app upgrade — issues, solutions &amp; effort (.txt)</h3>
-    <p>Plain-text list: each .NET 10 issue for the host service with its solution, what the developer does, and the time it takes.</p>
-  </a>
-  <a class="card" href="Modules-net10-upgrade-effort.txt">
-    <span class="tag mgr">PLAIN TEXT</span>
-    <h3>Modules upgrade — issues, solutions &amp; effort (.txt)</h3>
-    <p>Plain-text list: each .NET 10 issue with its solution, what the developer does, and the time it takes — split into subscriber and filter sections.</p>
-  </a>
-  <a class="card" href="Migrate-RecoApi.ps1">
+</div>
+
+<h3>Scripts</h3>
+<p class="path">docs/recoapi-net10-migration/scripts/</p>
+<div class="grid">
+  <a class="card" href="recoapi-net10-migration/scripts/Migrate-RecoApi.ps1">
     <span class="tag script">POWERSHELL</span>
-    <h3><code>Migrate-RecoApi.ps1</code></h3>
+    <h3 class="card-title"><code>Migrate-RecoApi.ps1</code></h3>
     <p>Combined host+modules migration script: dry-run default, backups, rollback, build gate. Validated byte-for-byte.</p>
   </a>
-  <a class="card" href="Migrate-RecoApiModules.ps1">
+  <a class="card" href="recoapi-net10-migration/scripts/Migrate-RecoApiModules.ps1">
     <span class="tag script">POWERSHELL</span>
-    <h3><code>Migrate-RecoApiModules.ps1</code></h3>
+    <h3 class="card-title"><code>Migrate-RecoApiModules.ps1</code></h3>
     <p>Modules-only script: lockstep guard, host-derived version map, batch filter, per-module build ledger.</p>
   </a>
 </div>
 
+<h3>Management reports</h3>
+<p class="path">docs/recoapi-net10-migration/management/</p>
+<div class="grid">
+  <a class="card" href="recoapi-net10-migration/management/Main-challenges-net6-to-net10.txt">
+    <span class="tag mgr">SUMMARY</span>
+    <h3 class="card-title">Main challenges — management summary</h3>
+    <p>One-page summary: the six main challenges (incl. the EF Core jump), ranked, with the effort picture.</p>
+  </a>
+  <a class="card" href="recoapi-net10-migration/management/recoapi-net10-migration-effort-report.html">
+    <span class="tag mgr">EFFORT REPORT</span>
+    <h3 class="card-title">Effort report — combined migration</h3>
+    <p>For technical managers: effort actuals vs projections, quality evidence, risks, decisions requested.</p>
+  </a>
+  <a class="card" href="recoapi-net10-migration/management/recoapi-modules-migration-effort-report.html">
+    <span class="tag mgr">EFFORT REPORT</span>
+    <h3 class="card-title">Effort report — module fleet rollout</h3>
+    <p>Per-module effort model, staffing scenarios for fleets of 50–300 modules, and the one-restart-window constraint.</p>
+  </a>
+</div>
+
+<hr class="sep">
+
+<!-- ============================================================ -->
 <h2>Cloud migration</h2>
 <p class="sec-sub">Moving legacy .NET Framework estates to Azure.</p>
+<p class="path">docs/azure-cloud-migration/</p>
 <div class="grid">
-  <a class="card" href="net-framework-webforms-azure-migration.html">
+  <a class="card" href="azure-cloud-migration/net-framework-webforms-azure-migration.html">
     <span class="tag eng">GUIDE</span>
-    <h3>A 20-year-old WebForms platform → Azure</h3>
+    <h3 class="card-title">A 20-year-old WebForms platform → Azure</h3>
     <p>Decision-oriented guide: VM vs App Service (± FaaS), the SQL Managed Instance argument, phased plan, inventory scripts.</p>
   </a>
-  <a class="card" href="Azure-VM-migration-effort-assessment.txt">
-    <span class="tag mgr">PLAIN TEXT</span>
-    <h3>Azure VM lift-and-shift — effort assessment (.txt)</h3>
+  <a class="card" href="azure-cloud-migration/Azure-VM-migration-effort-assessment.txt">
+    <span class="tag mgr">EFFORT ASSESSMENT</span>
+    <h3 class="card-title">Azure VM lift-and-shift — effort assessment</h3>
     <p>Brief effort assessment for rehosting a complex .NET Framework app on an Azure VM, with a note on SQL-backed Forms Authentication on App Service.</p>
   </a>
 </div>
