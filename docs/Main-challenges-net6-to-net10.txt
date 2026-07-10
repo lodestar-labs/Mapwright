@@ -61,6 +61,37 @@ migration started (model drift). That must be fixed first, as a separate
 change, or upgrade errors and old errors become indistinguishable.
 
 
+6) THE ENTITY FRAMEWORK CORE JUMP: FOUR MAJOR VERSIONS AT ONCE
+------------------------------------------------------------------
+The app's database layer (EF Core) moves from version 6 to version 10 - four
+major versions in one step. EF is exactly the kind of library where the risk
+is BEHAVIOURAL, not compile-time: each major version can change how queries
+are translated to SQL.
+
+Why this is MANAGEABLE for this app:
+  - Observed in the reference migration: ZERO compile errors from the EF bump,
+    across the host and every module.
+  - The app's EF usage is the simplest kind: fetch a record, map it, save it.
+    No complex queries, no EF-generated schema migrations, minimal raw SQL -
+    the three places where EF major versions usually hurt.
+  - When EF translation does change, the failure is normally LOUD (a clear
+    runtime error), not silently wrong data. Loud failures are caught by the
+    planned "one data flow per module" test.
+
+The residual risks and their controls:
+  - List-parameter queries: EF 8+ translates them differently and needs the
+    database compatibility level to be 130 or higher. Pre-check with one SQL
+    query (SELECT compatibility_level FROM sys.databases); if low, raise it or
+    configure EF to use the old translation. 30 minutes.
+  - Query performance shifts (same results, different SQL plans): unlikely for
+    simple lookups; watch the first production days.
+  - Everything else: covered by the 1-2 day database-connected verification
+    already in the plan.
+
+VERDICT: real but well-contained. No extra budget needed beyond the planned
+verification, plus the one 30-minute compatibility-level pre-check.
+
+
 ==============================================================================
  THE EFFORT PICTURE
 ==============================================================================

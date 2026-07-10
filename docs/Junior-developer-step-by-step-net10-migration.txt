@@ -1,0 +1,335 @@
+==============================================================================
+ STEP-BY-STEP: MIGRATE THE APP FROM .NET 6 TO .NET 10
+ Written for a junior developer with little .NET experience.
+==============================================================================
+
+HOW TO USE THIS GUIDE
+---------------------
+Every step has three parts:
+  DO          - what to do, exactly.
+  CHECK       - what success looks like. Do not continue until you see it.
+  IF IT FAILS - how to recover and move forward.
+
+GOLDEN RULES (read these twice)
+  1. Do ONE step at a time. Build after every step.
+  2. Never continue past a failing step. Fix it or undo it first.
+  3. To undo your last change to a file:   git checkout -- <path-to-file>
+  4. If you are stuck more than 30 minutes on one step: undo the change,
+     re-read the step, try once more. Still stuck? Ask your lead. That is
+     normal and expected.
+  5. Commit after every GREEN step:        git add -A
+                                           git commit -m "step X done"
+     This means you can never lose more than one step of work.
+
+
+==============================================================================
+ PART 0 - SETUP AND SAFETY NET
+==============================================================================
+
+STEP 0.1 - Install the .NET 10 SDK.
+  DO:     Download and install the .NET 10 SDK from dotnet.microsoft.com.
+  CHECK:  Open a terminal. Run:  dotnet --list-sdks
+          You see a line starting with 10.
+  IF IT FAILS: Close and reopen the terminal (the PATH updates on restart).
+          Still missing? Reinstall the SDK.
+
+STEP 0.2 - Get both repositories side by side.
+  DO:     Clone the host repo and the modules repo into the SAME parent
+          folder, keeping their normal folder names. The modules find the host
+          by relative path, so the layout matters:
+              C:\src\RecoApi
+              C:\src\RecoApiModules
+  CHECK:  Both folders exist next to each other with those names.
+  IF IT FAILS: Ask your lead for the repo URLs and access.
+
+STEP 0.3 - Make a branch in each repo.
+  DO:     In each repo folder run:
+              git checkout -b net10-upgrade
+  CHECK:  git branch   shows net10-upgrade with a star.
+  IF IT FAILS: If git says the branch exists:  git checkout net10-upgrade
+
+STEP 0.4 - Prove everything builds BEFORE you change anything.
+  DO:     In the host repo:      dotnet build RECO.API.sln
+          In each module folder: dotnet build <ModuleName>.sln
+  CHECK:  Every build says "Build succeeded".
+  IF IT FAILS: STOP. This breakage is not yours and not part of the migration.
+          It must be fixed first or you will chase ghost errors later.
+          Known case: a module fails with error CS0311 about a host model and
+          an interface. Fix: open the named host model class and add the same
+          interface its sibling model classes have. Rebuild. If it is anything
+          else, ask your lead - and fix it as its OWN commit before going on.
+
+STEP 0.5 - Ask your lead ONE question now: AutoMapper option A or B?
+          A = upgrade AutoMapper to version 16 (fast; needs a license check).
+          B = replace AutoMapper with Mapperly (free; more work).
+          Write the answer down. You will use it in Steps 1.8 and 2.5.
+
+
+==============================================================================
+ PART 1 - THE HOST (do this first, always)
+==============================================================================
+
+STEP 1.1 - Retarget every host project to .NET 10.
+  DO:     Open each .csproj file in the host repo (about 11 files, find them
+          with your editor's file search for "*.csproj"). Change:
+              <TargetFramework>net6.0</TargetFramework>
+          to:
+              <TargetFramework>net10.0</TargetFramework>
+  CHECK:  Search the whole host repo for "net6.0". No .csproj contains it.
+  IF IT FAILS: Nothing can fail here; it is a text edit. Do NOT build yet -
+          the build WILL be red until Step 1.2 is done. That is expected.
+
+STEP 1.2 - Update the host packages.
+  DO:     In each host .csproj, set the Version="" of each PackageReference to
+          the value below. (Newer patch versions are fine; ask your lead.)
+              Microsoft.EntityFrameworkCore(.Design/.SqlServer)  10.0.9
+              Microsoft.Extensions.*                             10.0.9
+              Newtonsoft.Json                                    13.0.4
+              Serilog                                            4.3.1
+              Serilog.AspNetCore                                 10.0.0
+              Serilog.Expressions                                5.0.0
+              Serilog.Extensions.Hosting                         10.0.0
+              Serilog.Extensions.Logging                         10.0.0
+              Serilog.Settings.Configuration                     10.0.1
+              Serilog.Sinks.Console                              6.1.1
+              Serilog.Sinks.Email                                4.2.1
+              Serilog.Sinks.File                                 7.0.0
+              Serilog.Sinks.MSSqlServer                          10.0.0
+              Swashbuckle.AspNetCore                             10.2.3
+              NUnit                                              4.6.1
+              NUnit3TestAdapter                                  6.2.0
+              Microsoft.NET.Test.Sdk                             18.7.0
+              Moq                                                4.20.72
+          Leave AutoMapper alone for now (Step 1.8 handles it).
+          WRITE THIS LIST DOWN - the modules must use the same versions later.
+  CHECK:  dotnet build RECO.API.sln
+          Expect: package errors gone. TWO compile errors remain - the email
+          sink (Step 1.3) and one Swagger "using" (Step 1.4). If those are the
+          only errors, you are exactly on track.
+  IF IT FAILS with NU1102 or NU1202 (version not found / not compatible):
+          the version number is mistyped or does not exist. Look the package
+          up on nuget.org and take the newest 10.x (or listed) version.
+
+STEP 1.3 - Fix the email sink (the one real code fix).
+  DO:     Open the two files in the EmailSink folder of the Utils project.
+          In EmailSinkSettings.cs, replace the old conversion with:
+
+            public EmailSinkOptions ToEmailSinkOptions()
+            {
+                var result = new EmailSinkOptions
+                {
+                    From = FromEmail,
+                    To = new List<string> { ToEmail },
+                    Host = MailServer,
+                    Port = Port,
+                    ConnectionSecurity = EnableSsl
+                        ? SecureSocketOptions.Auto
+                        : SecureSocketOptions.None,
+                    IsBodyHtml = IsBodyHtml,
+                    Subject = new MessageTemplateTextFormatter(
+                        EmailSubject ?? "Log Email"),
+                };
+                if (!UseDefaultCredentials)
+                    result.Credentials = new NetworkCredential(Username, Password);
+                return result;
+            }
+
+          Add these usings at the top of that file:
+            using MailKit.Security;
+            using Serilog.Formatting.Display;
+            using Serilog.Sinks.Email;
+            using System.Net;
+
+          In EmailSinkExtensions.cs, make the EmailSink method:
+
+            public static LoggerConfiguration EmailSink(
+                this LoggerSinkConfiguration loggerConfiguration,
+                EmailSinkSettings emailSinkSettings)
+            {
+                if (emailSinkSettings == null)
+                    throw new ArgumentNullException(nameof(emailSinkSettings));
+                var options = emailSinkSettings.ToEmailSinkOptions();
+                options.ServerCertificateValidationCallback =
+                    (s, c, ch, e) => true;
+                return loggerConfiguration.Email(options,
+                    restrictedToMinimumLevel: emailSinkSettings.MinimumLogLevel);
+            }
+
+          IMPORTANT: do NOT rename the method or any setting property. The
+          config file binds to those names.
+  CHECK:  Build the Utils project: the EmailConnectionInfo error is gone.
+  IF IT FAILS: read the error line. Missing type = missing "using" from the
+          list above. A property name it does not know = you renamed
+          something; put the old name back.
+
+STEP 1.4 - Fix the Swagger using.
+  DO:     In Startup.cs change:
+              using Microsoft.OpenApi.Models;
+          to:
+              using Microsoft.OpenApi;
+  CHECK:  That error is gone on build.
+  IF IT FAILS: It cannot; it is one line.
+
+STEP 1.5 - Build the whole host green.
+  DO:     dotnet build RECO.API.sln
+  CHECK:  "Build succeeded". Warnings are OK. Commit now.
+  IF IT FAILS:
+          - error MSB3021 or MSB3027 (file in use): the app is running and
+            locking files. Stop it (Task Manager or:
+            taskkill /F /IM RECO.API.Service.exe) and build again.
+          - error NU1605 (downgrade): two projects want different versions of
+            the same package. Make them equal (use the Step 1.2 list).
+          - anything else: undo your last edited file
+            (git checkout -- <file>) and redo its step slowly.
+
+STEP 1.6 - Fix the database connection strings.
+  DO:     In appsettings.json, add to the END of every connection string:
+              TrustServerCertificate=True;
+  CHECK:  Every connection string contains it.
+  WHY:    The new SQL client refuses unencrypted-looking dev servers. This
+          breaks at RUN time, not build time - so do it now, not when it hurts.
+
+STEP 1.7 - Fix the module folder paths.
+  DO:     In appsettings.json set:
+              "FiltersLocation": "Modules\\Filters",
+              "SubscribersLocation": "Modules\\Subscribers",
+          In ModuleProviderLoader.cs, in the constructor, change:
+              _pathToModulesFolder = pathToModulesFolder;
+          to:
+              _pathToModulesFolder = Path.GetFullPath(
+                  pathToModulesFolder, AppContext.BaseDirectory);
+  CHECK:  Host still builds green.
+  WHY:    The loader API only accepts full paths; this line turns the
+          relative setting into a full path at startup.
+
+STEP 1.8 - AutoMapper in the host (use the answer from Step 0.5).
+  OPTION A (upgrade):
+    DO:    In every host .csproj that references AutoMapper, set its version
+           to the 16.x your lead approved. Build.
+    CHECK: Green build. Note: host and modules MUST use the same AutoMapper
+           version - write it on your Step 1.2 list.
+  OPTION B (replace with Mapperly):
+    DO:    This is the hardest step. Work from the finished reference code
+           (branch replace-automapper-mapperly) and copy its pattern:
+           1. Remove the AutoMapper PackageReference; add
+              Riok.Mapperly 4.3.1.
+           2. Copy the IObjectMapper + ObjectMapperRegistry files from the
+              reference Domain project into yours (if not already there).
+           3. Create a RecoMappings class: for each old CreateMap, one partial
+              method; each ".ForMember(x => x.Y, o => o.Ignore())" becomes one
+              [MapperIgnoreTarget(nameof(...Y))] attribute; each rename becomes
+              [MapProperty(...)]. Put these two attributes on the class:
+              [Mapper(PropertyNameMappingStrategy =
+                        PropertyNameMappingStrategy.CaseInsensitive,
+                      RequiredMappingStrategy = RequiredMappingStrategy.Target)]
+           4. NEVER map a type to itself for cloning - it returns the same
+              object. Clone = new object + generated CopyOnto(source, target).
+           5. Register every pair in the registry; change IMapper to
+              IObjectMapper in the few consumer classes.
+    CHECK: Build. Mapperly errors (codes starting RMG) NAME the property that
+           is not mapped - add the matching ignore or rename attribute. Repeat
+           until green. The compiler checking you is the point.
+    IF STUCK: diff your file against the reference branch's version of the
+           same file. The answer is in there.
+
+STEP 1.9 - Commit. The host is done.
+
+
+==============================================================================
+ PART 2 - THE MODULES (repeat for EACH filter and subscriber)
+==============================================================================
+Do ONE module completely, commit, then the next. Never several half-done.
+
+STEP 2.1 - Retarget the module.
+  DO:     In the module .csproj: net6.0 -> net10.0.
+
+STEP 2.2 - Match packages to the host.
+  DO:     Set every shared package version to your Step 1.2 list (and the
+          AutoMapper version if Option A).
+  WHY:    Host and modules run in ONE process. Different versions = the module
+          loads, then crashes.
+
+STEP 2.3 - Fix the reference paths to host DLLs.
+  DO:     In the module .csproj, every <HintPath> that contains
+          \bin\Debug\net6.0\ becomes:
+              \bin\$(Configuration)\$(TargetFramework)\
+          Type it exactly, with the dollar signs and parentheses.
+          Leave any path that mentions a DIFFERENT framework (for example
+          netcoreapp2.2) alone.
+  WHY:    Otherwise the module silently keeps using last year's host files.
+
+STEP 2.4 - Build the module.
+  DO:     dotnet build <ModuleName>.sln
+  CHECK:  Green, and the module's files appear inside the host repo under
+          src\Service\RECO.API.Service\Modules\...\<ModuleName>\ with a fresh
+          timestamp.
+  IF IT FAILS with many "CS0246: 'RECO' could not be found": the module cannot
+          find the host DLLs. Build the HOST first (Step 1.5), check the two
+          repos sit side by side (Step 0.2), check Step 2.3 paths letter by
+          letter. This one error causes 90 percent of module problems.
+
+STEP 2.5 - AutoMapper in the module (subscribers only; filters usually skip).
+  OPTION A: nothing to do (Step 2.2 covered it).
+  OPTION B: same recipe as Step 1.8 Option B, but smaller: convert the
+          module's Mapping folder, register the pairs, change IMapper to
+          IObjectMapper in SubscriberBase/Provider. Copy the pattern from an
+          already-converted subscriber on the reference branch - they are all
+          alike. First one is slow; the rest are fast.
+
+STEP 2.6 - Commit. Next module.
+
+
+==============================================================================
+ PART 3 - RUN IT (needs the dev database)
+==============================================================================
+
+STEP 3.1 - Start the host.
+  DO:     dotnet run --project src\Service\RECO.API.Service
+  CHECK:  It starts without an exception, the log lists every module being
+          loaded, and the Swagger page answers in a browser.
+  IF IT FAILS:
+          - SQL error mentioning certificate/SSL: Step 1.6 missed a
+            connection string.
+          - "path is not absolute" or no modules load: Step 1.7.
+          - VerificationException mentioning AutoMapper or MaxInteger: a
+            module or the host still runs old AutoMapper - find it
+            (search all csproj for AutoMapper) and redo its Step 1.8/2.5.
+          - TypeLoadException / MissingMethodException when a module loads:
+            that module's package versions do not match the host - redo its
+            Step 2.2 and rebuild host then module.
+
+STEP 3.2 - Test one real flow per module.
+  DO:     For each module, run one normal operation end to end and compare
+          the saved values with the old system.
+  CHECK:  Same values. Especially any renamed/date fields.
+
+STEP 3.3 - Force one error and check the alert email arrives.
+
+STEP 3.4 - Run the test projects:  dotnet test
+  CHECK:  Tests pass. (Tests that need the database only pass on a machine
+          that can reach it - a pure connection error there is not your bug.)
+
+
+==============================================================================
+ EMERGENCY EXITS (when everything feels broken)
+==============================================================================
+  - Undo ONE file:                git checkout -- <file>
+  - Undo everything uncommitted:  git checkout -- .
+  - Go back one commit:           git reset --hard HEAD~1   (careful)
+  - Nuclear (back to clean start; DESTROYS your work on this branch):
+                                  git reset --hard origin/main
+  - Builds acting weird after many changes: delete all bin and obj folders,
+    then build again.
+  - And the standing rule: 30 minutes stuck = ask. Nobody expects a solo hero.
+
+==============================================================================
+ DONE WHEN
+==============================================================================
+  [ ] Host and every module build green on .NET 10.
+  [ ] No project references old AutoMapper (Option B) or all reference the
+      same new version (Option A).
+  [ ] Host starts; every module loads; Swagger answers.
+  [ ] One flow per module gives the same values as the old system.
+  [ ] Error email arrives. Tests pass on the database machine.
+  [ ] Everything committed on the net10-upgrade branch, pushed for review.
+==============================================================================
