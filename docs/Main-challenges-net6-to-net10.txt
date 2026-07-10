@@ -1,0 +1,83 @@
+==============================================================================
+ MAIN CHALLENGES: MIGRATING THE APP FROM .NET 6 TO .NET 10
+ Management summary
+==============================================================================
+Based on the completed reference migration. Ordered by importance.
+
+
+1) AUTOMAPPER BREAKS AT RUNTIME - AND THE BUILD WILL NOT TELL YOU
+------------------------------------------------------------------
+The data-mapping library the app uses (AutoMapper 11) compiles cleanly on
+.NET 10 but CRASHES the first time it maps anything. A "retarget and ship"
+migration would pass every build and then fail in production. The library also
+carries a known security advisory, and newer versions moved to a commercial
+license (a free tier exists for organisations under about 5M USD revenue and
+for non-profits).
+
+Resolution is a decision, not a given:
+  - UPGRADE AutoMapper: fast (hours), but check the license.
+  - REPLACE with Mapperly (free, compile-time): about 2 days for the host plus
+    0.5-2 hours per subscriber; removes the license question permanently.
+
+This is the single biggest cost and risk item.
+
+
+2) THE PLUGIN ARCHITECTURE MEANS EVERYTHING MOVES IN LOCKSTEP
+------------------------------------------------------------------
+The host loads every filter/subscriber module into ONE process. Host and all
+modules must use identical library versions and must be rebuilt and DEPLOYED
+TOGETHER in one restart window. One module left behind builds fine, loads, and
+takes the whole service down. With many modules in production this is a
+coordination challenge more than a technical one.
+
+Related trap (found and fixed): modules referenced host DLLs through paths
+with "net6.0" hard-coded - after the upgrade they would silently keep using
+last year's binaries.
+
+
+3) THE ECOSYSTEM JUMP, NOT THE CODE
+------------------------------------------------------------------
+Not a single line of business logic needed rewriting for .NET 10 itself. What
+breaks is the libraries moving four major versions at once:
+  - One real compile error: the custom email-alert sink (2-4 hours to rewrite).
+  - A renamed Swagger namespace (minutes).
+  - A silent one: the new SQL client encrypts connections by default, so
+    database connections FAIL AT RUNTIME until the connection strings are
+    adjusted (minutes to fix, painful to discover in production).
+
+
+4) A GREEN BUILD PROVES VERY LITTLE HERE
+------------------------------------------------------------------
+Every dangerous item above is invisible to the compiler. Full confidence
+requires RUNNING the service against the dev SQL Server: start-up, module
+loading, one data flow per module, an error email. That is 1-2 days and it is
+the one step that cannot be skipped.
+
+
+5) PRE-EXISTING BREAKAGE MUDDIES THE WATER
+------------------------------------------------------------------
+Some modules did not even compile against the current host BEFORE the
+migration started (model drift). That must be fixed first, as a separate
+change, or upgrade errors and old errors become indistinguishable.
+
+
+==============================================================================
+ THE EFFORT PICTURE
+==============================================================================
+HOST (one developer):
+  - Upgrade AutoMapper path:            about 3-5 days
+  - Replace-with-Mapperly path:         about 5-8 days
+  - Plus DB-connected verification:     1-2 days
+
+PER MODULE (multiply by fleet size; parallelises across developers):
+  - Mechanical steps:                   about 40-90 minutes
+  - Subscribers, if replacing mapper:   plus 0.5-2 hours each
+
+STATUS: the reference migration is already done and verified on branches
+(builds green, mapping proven equivalent in 236/236 checks, module loading
+verified). The production rollout is re-application, not discovery.
+
+------------------------------------------------------------------------------
+Companion documents: the full migration plan (Full-app-net10-migration-plan
+.txt), the host and modules task lists, and the two detailed effort reports.
+==============================================================================
