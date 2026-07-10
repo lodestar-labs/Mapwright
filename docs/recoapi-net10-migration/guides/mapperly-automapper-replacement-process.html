@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Replacing AutoMapper with Mapperly — Process and Challenges</title>
+<style>
+  :root { --ink:#1a1a2e; --mut:#5a5a72; --line:#e3e3ec; --acc:#2456a6; --acc2:#0e7490;
+    --ok:#1a7f4b; --warn:#b45309; --bad:#b3261e; --bg:#fafafc; --card:#fff; --code:#f4f4f8;
+    --codeink:#22223a; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink:#e8e8f0; --mut:#a0a0b8; --line:#2c2c3a; --acc:#6ea8fe; --acc2:#3ec5d8;
+      --ok:#46c47c; --warn:#e0a34a; --bad:#f2726a; --bg:#14141c; --card:#1c1c26;
+      --code:#20202c; --codeink:#dcdce8; } }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); background: var(--bg); margin: 0; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.42rem; margin: 3rem 0 .7rem; border-bottom: 2px solid var(--line); padding-bottom: .35rem; scroll-margin-top: 1rem; }
+  h3 { font-size: 1.12rem; margin: 1.9rem 0 .4rem; scroll-margin-top: 1rem; }
+  h4 { font-size: 1rem; margin: 1.3rem 0 .3rem; color: var(--acc2); }
+  .sub { color: var(--mut); margin: 0 0 1.4rem; font-size: 1.02rem; }
+  p, li { font-size: .96rem; }
+  a { color: var(--acc); }
+  table { border-collapse: collapse; width: 100%; margin: .9rem 0 1.3rem; font-size: .89rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: color-mix(in srgb, var(--acc) 10%, transparent); }
+  .tblwrap { overflow-x: auto; }
+  code { background: var(--code); color: var(--codeink); padding: .12rem .38rem; border-radius: 4px; font-size: .88em; font-family: "Cascadia Code", Consolas, monospace; }
+  pre { background: var(--code); color: var(--codeink); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .83rem; line-height: 1.5; font-family: "Cascadia Code", Consolas, monospace; }
+  pre code { background: none; padding: 0; }
+  .card { border: 1px solid var(--line); border-left: 4px solid var(--acc); background: var(--card); border-radius: 8px; padding: .9rem 1.15rem; margin: 1.1rem 0; }
+  .card.ok { border-left-color: var(--ok); } .card.warn { border-left-color: var(--warn); }
+  .card.bad { border-left-color: var(--bad); } .card.tip { border-left-color: var(--acc2); }
+  .card h4 { margin-top: 0; }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .12rem .55rem; border-radius: 20px; margin-right: .35rem; vertical-align: middle; letter-spacing: .03em;
+         background: color-mix(in srgb, var(--acc) 15%, transparent); color: var(--acc); }
+  .tag.ok  { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.bad { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.man { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .muted { color: var(--mut); font-size: .88rem; }
+  .del { color: var(--bad); } .add { color: var(--ok); }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li { counter-increment: step; position: relative; padding: .2rem 0 1rem 3rem; margin: 0; }
+  .steps > li::before { content: counter(step); position: absolute; left: 0; top: .1rem; width: 2rem; height: 2rem; background: var(--acc); color: #fff; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: .95rem; }
+  .steps > li::after { content: ""; position: absolute; left: .97rem; top: 2.3rem; bottom: -.2rem; width: 2px; background: var(--line); }
+  .steps > li:last-child::after { display: none; }
+  .toc { columns: 2; column-gap: 2rem; font-size: .92rem; padding: 1rem 1.2rem; }
+  .toc a { text-decoration: none; } .toc li { margin: .2rem 0; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+  .num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Replacing AutoMapper with Mapperly</h1>
+<p class="sub">The exact process, and the real challenges, for swapping a runtime-configured object mapper
+(AutoMapper) for a compile-time source-generated one (<a href="https://github.com/riok/mapperly">Riok.Mapperly</a>).
+Every code sample below is drawn from an actual migration, not a synthetic example.</p>
+
+<div class="card tip">
+  <h4>Facts as of this writing</h4>
+  <p style="margin-bottom:0">Mapperly latest stable is <b>4.3.1</b>, license <b>Apache-2.0</b> (no commercial tier,
+  no revenue threshold — unlike AutoMapper since its July 2025 licensing change). Mapperly ships <b>zero runtime
+  library</b>: it is a Roslyn source generator that writes ordinary C# into your assembly at build time. That one
+  fact is the root of both its biggest benefit and its biggest process cost, explained below.</p>
+</div>
+
+<h2 id="toc">Contents</h2>
+<ol class="toc">
+  <li><a href="#why">Why replace AutoMapper at all</a></li>
+  <li><a href="#process">The exact process, step by step</a></li>
+  <li><a href="#challenges">The real challenges</a></li>
+  <li><a href="#nonchallenges">What turned out NOT to be a challenge</a></li>
+  <li><a href="#effort">Effort summary</a></li>
+  <li><a href="#verdict">Verdict — when this trade is worth it</a></li>
+</ol>
+
+<!-- ============================================================= -->
+<h2 id="why">1. Why replace AutoMapper at all</h2>
+<p>Three independent reasons converged, but only the first is a hard blocker:</p>
+<div class="tblwrap"><table>
+<tr><th>Reason</th><th>Detail</th><th>Forces replacement?</th></tr>
+<tr><td><b>Runtime crash on newer .NET</b></td>
+    <td>Older pinned AutoMapper versions (e.g. 11.x) build cleanly but throw
+    <code>VerificationException</code> the first time a mapper configuration is constructed, because their
+    config scanner reflects over LINQ internals that gained stricter generic constraints in newer runtimes.</td>
+    <td><span class="tag bad">YES</span> for that pinned version — but see the note below.</td></tr>
+<tr><td>Security advisory on the old pinned version</td>
+    <td>A high-severity advisory is flagged by NuGet audit on every build until the version changes.</td>
+    <td>No — an upgrade also clears this.</td></tr>
+<tr><td>Commercial licensing (as of July 2025)</td>
+    <td>AutoMapper v15+ is dual-licensed (RPL-1.5 / commercial); a free community tier exists for organisations
+    under roughly $5M revenue and for non-profits.</td>
+    <td>No — check if you qualify for the free tier first.</td></tr>
+</table></div>
+<div class="card warn">
+  <h4>The honest fork in the road</h4>
+  <p style="margin-bottom:0">Newer AutoMapper releases (v16+) <b>do</b> support current .NET runtimes. So the crash
+  alone only forces an AutoMapper <i>version bump</i>, not a switch to Mapperly. Replacing with Mapperly is a
+  <b>deliberate choice</b> for the reasons in the next sections — mainly the licensing question and, for
+  multi-assembly plugin systems, the version-coupling problem Mapperly eliminates. If neither of those apply to you,
+  upgrading AutoMapper in place is faster. This document is written for the case where you decide replacement is
+  worth it.</p>
+</div>
+
+<!-- ============================================================= -->
+<h2 id="process">2. The exact process, step by step</h2>
+<p>This is the sequence actually followed, per mapping-bearing project (a host data layer or a plugin module), with
+real before/after code.</p>
+
+<h3>Step 1 — Swap the package reference</h3>
+<pre><code><span class="del">- &lt;PackageReference Include="AutoMapper" Version="11.0.1" /&gt;</span>
+<span class="add">+ &lt;PackageReference Include="Riok.Mapperly" Version="4.3.1" /&gt;</span></code></pre>
+<p class="muted">Mapperly is a build-time analyzer package (<code>PrivateAssets="all"</code> by default in its own
+package metadata) — it does not appear in your published output as a runtime dependency.</p>
+
+<h3>Step 2 — Design the seam (do this once, before converting any map)</h3>
+<p>This is the step that is easy to skip and shouldn't be. AutoMapper's <code>IMapper</code> exposes a
+<b>generic, runtime-queryable API</b> — any caller can write <code>_mapper.Map&lt;TDestination&gt;(source)</code> for
+any registered pair, resolved at runtime. Mapperly generates the opposite: <b>concrete, statically-typed partial
+methods</b>, one per mapping, known at compile time. If your codebase has generic consumers (a repository class
+templated on the entity type, for example), you need a small bridge between the two shapes.</p>
+<pre><code>// A tiny seam, once, in a shared assembly:
+public interface IObjectMapper
+{
+    TDestination Map&lt;TSource, TDestination&gt;(TSource source);
+    void Map&lt;TSource, TDestination&gt;(TSource source, TDestination destination);
+}
+
+public sealed class ObjectMapperRegistry : IObjectMapper
+{
+    private readonly Dictionary&lt;(Type, Type), Delegate&gt; _updates = new();
+    private readonly Dictionary&lt;(Type, Type), Delegate&gt; _creates = new();
+
+    public ObjectMapperRegistry RegisterUpdate&lt;TSource, TDestination&gt;(
+        Action&lt;TSource, TDestination&gt; map)
+    {
+        _updates[(typeof(TSource), typeof(TDestination))] = map;
+        return this;
+    }
+    // ...Register&lt;TSource,TDestination&gt;(Func&lt;TSource,TDestination&gt; create) analogous...
+
+    public void Map&lt;TSource, TDestination&gt;(TSource source, TDestination destination)
+    {
+        if (!_updates.TryGetValue((typeof(TSource), typeof(TDestination)), out var d))
+            throw new InvalidOperationException(
+                $"No mapping registered for ({typeof(TSource).Name}, {typeof(TDestination).Name}).");
+        ((Action&lt;TSource, TDestination&gt;)d)(source, destination);
+    }
+}</code></pre>
+<p>Every registration line points at a Mapperly-generated method the compiler already verified; a missing pair
+throws an exception <b>naming the exact pair</b> at first use, instead of AutoMapper's old build-time
+<code>AssertConfigurationIsValid()</code>. Host it in whichever assembly all your mapping-bearing projects already
+reference (a shared domain/abstractions project in a plugin system).</p>
+
+<h3>Step 3 — Convert each <code>CreateMap</code> into a Mapperly <code>[Mapper]</code> partial method</h3>
+<p>Real before/after, from a subscriber module that copies a code-reference record into a local repository model:</p>
+<div class="tblwrap"><table>
+<tr><th style="width:50%">Before — AutoMapper, runtime-configured</th><th>After — Mapperly, compile-time</th></tr>
+<tr>
+<td><pre style="font-size:.78rem"><code>cfg.CreateMap&lt;Reco.TblCode, Sub.TblCode&gt;()
+  .ForMember(m =&gt; m.TblCodeId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroupId,o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.TblCodeGroup,  o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.ForeignId,     o =&gt; o.Ignore())
+  .ForMember(m =&gt; m.AddDate,
+             o =&gt; o.MapFrom(s =&gt; s.Created));</code></pre></td>
+<td><pre style="font-size:.78rem"><code>[Mapper(PropertyNameMappingStrategy =
+          PropertyNameMappingStrategy.CaseInsensitive,
+        RequiredMappingStrategy =
+          RequiredMappingStrategy.Target)]
+internal static partial class SubscriberMappings
+{
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroupId))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.TblCodeGroup))]
+  [MapperIgnoreTarget(nameof(Sub.TblCode.ForeignId))]
+  [MapProperty(nameof(Reco.TblCode.Created),
+               nameof(Sub.TblCode.AddDate))]
+  internal static partial void Copy(
+        Reco.TblCode source, Sub.TblCode target);
+}</code></pre></td>
+</tr>
+</table></div>
+<p>The transcription rules — apply mechanically, one old line at a time:</p>
+<ul>
+  <li><code>.ForMember(x =&gt; x.Y, o =&gt; o.Ignore())</code> → one <code>[MapperIgnoreTarget(nameof(Target.Y))]</code>.
+      <b>One attribute per old ignore line, no more, no fewer.</b></li>
+  <li><code>.ForMember(x =&gt; x.Y, o =&gt; o.MapFrom(s =&gt; s.Z))</code> (a rename) →
+      <code>[MapProperty(nameof(Source.Z), nameof(Target.Y))]</code>.</li>
+  <li><code>PropertyNameMappingStrategy.CaseInsensitive</code> on the <code>[Mapper]</code> class reproduces
+      AutoMapper's default case-insensitive property matching (needed wherever, e.g., a domain property is
+      <code>TblCodeID</code> and the persistence model is <code>TblCodeId</code>).</li>
+  <li><code>RequiredMappingStrategy.Target</code> reproduces
+      <code>AssertConfigurationIsValid()</code> — every destination member must be mapped or explicitly ignored —
+      but the check now runs on <b>every build</b>, not inside a static constructor the first time the app starts.</li>
+</ul>
+
+<h3>Step 4 — Register the generated method, matching what the pipeline actually calls</h3>
+<pre><code>internal static class MapperFactory
+{
+    public static IObjectMapper CreateMapper()
+    {
+        return new ObjectMapperRegistry()
+            .RegisterUpdate&lt;Reco.TblCode,        Sub.TblCode&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeRel,     Sub.TblCodeRel&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeType,    Sub.TblCodeGroup&gt;(SubscriberMappings.Copy)
+            .RegisterUpdate&lt;Reco.TblCodeTypeRel, Sub.TblCodeTypeRel&gt;(SubscriberMappings.Copy);
+    }
+}</code></pre>
+<p class="muted">Grep the pipeline code first: register only the (source, target) pairs something actually calls.
+Registering unused create-maps just because the old config had them adds nothing but noise.</p>
+
+<h3>Step 5 — Swap the consumer type</h3>
+<pre><code><span class="del">- using AutoMapper;</span>
+<span class="add">+ using RECO.API.Domain.Mapping;</span>
+...
+<span class="del">- protected internal readonly IMapper _mapper;</span>
+<span class="add">+ protected internal readonly IObjectMapper _mapper;</span>
+<span class="del">- internal SubscriberBase(ILogger logger, IContextFactory f, IMapper mapper)</span>
+<span class="add">+ internal SubscriberBase(ILogger logger, IContextFactory f, IObjectMapper mapper)</span></code></pre>
+<p><b>Call sites do not change</b> — <code>_mapper.Map&lt;T&gt;(x)</code> and <code>_mapper.Map(src, dst)</code> read
+identically before and after. Only the injected type changes, which is why this step is fast even across many
+consumer classes.</p>
+
+<h3>Step 6 — Handle same-type copies specially (see <a href="#clone">the clone challenge</a> below)</h3>
+<pre><code>// Never a Mapperly same-type map. Always: new instance + generated in-place copy.
+.Register&lt;Models.TblCode, Models.TblCode&gt;(source =&gt;
+    { var target = new Models.TblCode(); RecoMappings.CopyOnto(source, target); return target; })</code></pre>
+
+<h3>Step 7 — Prove equivalence, don't assume it</h3>
+<p>Build a small harness that maps a fully-populated object through the <b>original</b> AutoMapper configuration
+and through the new Mapperly-backed registry, then compares every property. In the reference migration this
+harness compared <b>236 property values across 8 entity types × 4 map shapes</b> (to-model, to-domain, clone,
+copy-onto) and found them <b>236/236 identical</b> — and it is also what caught the clone bug below, before it
+ever reached a test environment.</p>
+
+<!-- ============================================================= -->
+<h2 id="challenges">3. The real challenges</h2>
+
+<h3 id="clone">Challenge 1 — The identity-clone trap <span class="tag bad">SILENT DATA CORRUPTION</span></h3>
+<p>The single most dangerous thing encountered doing this. Ask Mapperly for a same-type clone —
+<code>[MapperIgnoreTarget]</code>-free, straightforward-looking —</p>
+<pre><code>internal static partial Models.TblSynonym? Clone(Models.TblSynonym? source);</code></pre>
+<p>and it generates, entirely reasonably from its own point of view:</p>
+<pre><code>internal static partial Models.TblSynonym? Clone(Models.TblSynonym? source)
+{
+    return source == null ? default : source;   // ← the SAME reference, not a copy!
+}</code></pre>
+<p>Mapperly treats "map a type to itself" as an identity — logically correct, since every member already matches
+its own name and type. But if your code snapshots "old values" before an update to compare against "new values"
+later (a common pattern in a repository layer that logs/validates changes), an aliased snapshot makes every
+old/new comparison <b>silently equal</b>. No exception. Just wrong behaviour. Fix: never declare a same-type map
+for cloning — always new instance plus the generated in-place copy method (Step 6 above).</p>
+
+<h3>Challenge 2 — Bridging generic consumers to static generated methods <span class="tag man">DESIGN WORK, NOT MECHANICAL</span></h3>
+<p>Covered as Step 2, but worth calling out as a genuine <i>challenge</i>, not just a step: this is the one part
+of the whole process that is <b>design</b>, not transcription. AutoMapper's runtime type resolution let generic,
+templated consumer code (e.g. <code>Repository&lt;TDbModel&gt;</code>) call
+<code>_mapper.Map&lt;TDbModel&gt;(obj)</code> for any of dozens of entity types through one interface. Mapperly's
+compile-time methods have no equivalent generic entry point by design — that's precisely what makes them
+reflection-free and fast. Bridging the two shapes (the <code>IObjectMapper</code> + registry seam) has to be
+designed once, correctly, before mechanical conversion can even begin. Skipping this step and converting maps
+ad hoc leads to inconsistent call patterns across the codebase.</p>
+
+<h3>Challenge 3 — Reproducing two implicit AutoMapper behaviours <span class="tag man">EASY TO MISS</span></h3>
+<p>AutoMapper's defaults are implicit; Mapperly's are explicit attributes you must remember to add on every
+<code>[Mapper]</code> class:</p>
+<ul>
+  <li><b>Case-insensitive property matching</b> — without <code>PropertyNameMappingStrategy.CaseInsensitive</code>,
+      Mapperly's default exact-name matching will silently leave case-mismatched properties unmapped (caught,
+      loudly, only if <code>RequiredMappingStrategy.Target</code> is also set — see next point).</li>
+  <li><b>Configuration completeness checking</b> — <code>AssertConfigurationIsValid()</code> has no automatic
+      Mapperly equivalent; you must opt in with <code>RequiredMappingStrategy.Target</code> on every mapper class,
+      or an unmapped destination member fails silently instead of becoming a compile error.</li>
+</ul>
+<p>Both are one-line fixes once known — the challenge is that nothing warns you if you forget them; a
+mapper class without these two settings compiles and looks correct.</p>
+
+<h3>Challenge 4 — Diagnostics on nested/navigation members <span class="tag ok">USUALLY BENIGN, MUST BE VERIFIED</span></h3>
+<p>Mapperly auto-derives nested object maps when it can, and emits an <code>RMG012</code> <i>warning</i> when it
+can't fully match a nested type's members (common on EF navigation properties like a code's parent
+group/category, which Mapperly cannot know are irrelevant in a given flow). In the reference migration these
+warnings were <b>accepted, not suppressed</b> — verified case by case that the navigation in question arrives
+null in that code path (records come from the host API as scalars, not populated graphs), so the warning
+correctly documents a boundary rather than hiding a real bug. Treat every <code>RMG012</code> as a question to
+answer, not noise to silence.</p>
+
+<h3>Challenge 5 — It's a manual, per-mapping transcription job <span class="tag man">EFFORT, NOT RISK</span></h3>
+<p>Nothing above the package swap is automatable safely. Every <code>ForMember(...Ignore())</code> encodes a
+deliberate business decision (which audit columns, which navigation properties must never be touched by this
+specific pipeline) — a blind text-replace risks silently dropping or keeping the wrong ignores. In a plugin
+system with many subscriber/filter modules, this means the conversion is genuinely proportional to the number of
+mapping-bearing projects: expect roughly <b>0.5–2 hours per module</b> once the pattern is set, with the first
+module taking closer to a day while the seam and the team's own conventions get established.</p>
+
+<!-- ============================================================= -->
+<h2 id="nonchallenges">4. What turned out NOT to be a challenge</h2>
+<ul>
+  <li><b>Call-site churn.</b> Because the seam preserves <code>Map&lt;T&gt;(x)</code> /
+      <code>Map(src, dst)</code> signatures, consumer code outside the mapping definitions themselves barely
+      changes — one interface-type swap per class, nothing else.</li>
+  <li><b>The plugin version-coupling problem — it actually gets solved, not just avoided.</b> AutoMapper's runtime
+      library had to be the <i>same version</i> across a host and every module sharing its process (a real
+      constraint in <code>Assembly.LoadFile</code>-style plugin architectures). Because Mapperly ships no runtime
+      library — the generated code compiles directly into each assembly — that whole class of constraint
+      <b>disappears</b> once the switch is made. This is a strict win specific to multi-assembly/plugin systems,
+      not a challenge.</li>
+  <li><b>Build-time performance.</b> Source generation added no perceptible build-time cost in this migration;
+      Mapperly's generator is intentionally lightweight.</li>
+  <li><b>Test framework compatibility, dependency injection registration style, JSON serialization of mapped
+      objects</b> — all unaffected; the generated methods are ordinary static C#.</li>
+</ul>
+
+<!-- ============================================================= -->
+<h2 id="effort">5. Effort summary</h2>
+<div class="tblwrap"><table>
+<tr><th>Scope</th><th>Time</th><th>Notes</th></tr>
+<tr><td>Design the seam (<code>IObjectMapper</code> + registry), once</td><td class="num">0.5 – 1 day</td>
+    <td>The one genuinely design-heavy step; do it before converting any real map.</td></tr>
+<tr><td>Host data-mapping layer conversion</td><td class="num">1 – 2 days</td>
+    <td>Depends on entity count; the reference migration converted 8 entity types × 4 map shapes.</td></tr>
+<tr><td>Per plugin module (subscriber/filter) with mappings</td><td class="num">0.5 – 2 hours</td>
+    <td>First module ~1 day (pattern-setting); modules without any mapping: effectively 0.</td></tr>
+<tr><td>Parity harness (build once, reuse per project)</td><td class="num">Half a day</td>
+    <td>Pays for itself the first time it catches a transcription slip — it caught the clone bug here.</td></tr>
+</table></div>
+
+<!-- ============================================================= -->
+<h2 id="verdict">6. Verdict — when this trade is worth it</h2>
+<div class="card ok">
+  <p style="margin-bottom:0"><b>Worth it</b> when: you run a multi-assembly / plugin architecture where a shared
+  runtime mapper version is an operational liability; you want mapping errors caught by the compiler instead of
+  discovered in production; or the AutoMapper licensing change is a real constraint for your organisation.<br><br>
+  <b>Not worth it (upgrade AutoMapper instead)</b> when: you have a single deployable, you qualify for AutoMapper's
+  free tier, and speed matters more than the long-term properties above — an AutoMapper version bump is a matter of
+  hours, this process is a matter of days plus a per-module tail.</p>
+</div>
+
+<hr>
+<p class="muted">Companion to the RecoApi .NET 10 migration guides and the general AutoMapper→Mapwright materials.
+Every code sample and every number in this document (236/236 parity, the clone-bug reproduction, the RMG012
+verification approach) was observed directly during an actual migration and is reproducible from the source
+branches.</p>
+
+</main>
+</body>
+</html>
